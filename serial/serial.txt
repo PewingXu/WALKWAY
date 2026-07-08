@@ -1,0 +1,13 @@
+{
+  "_comment": "脚垫 MAC(Unique ID) -> footN 映射文件。gaitSerialServer.js 通过 AT 指令读取每块脚垫模组的 Unique ID，再用本文件的 key 字段把它映射到 foot1~foot4。",
+  "_format": "本文件为 JSON。真正的映射放在 key 字段里，key 可以是一个对象（推荐），也可以是一段 JSON 字符串。左边是脚垫的 Unique ID（不区分大小写，比较时会转大写并只取字母数字），右边是 foot1/foot2/foot3/foot4。",
+  "_howto": "现场识别方法：先删掉本文件里的示例、或直接连设备启动服务，看后端日志里每个串口打印的 [mac] ... Unique ID: XXXX，或看前端收到的 {macInfo:{footN:'XXXX'}}，把每块垫子踩上去确认位置后，把对应的 Unique ID 抄到下面 key 里。未命中的脚垫会按发现顺序临时分配 foot1..foot4，仅用于临时联调。",
+  "_example_note": "下面 key 是示例值，请替换为你现场读到的真实 Unique ID。",
+  "key": {
+    "34463730155032138F": "foot1",
+    "34463730155032138E": "foot2",
+    "34463730155032138D": "foot3",
+    "34463730155032138C": "foot4"
+  },
+  "orgName": "示例机构"
+}

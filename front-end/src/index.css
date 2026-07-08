@@ -1,0 +1,508 @@
+/* ============================================================
+   暗蓝主题变量（集中管理，便于后续替换模板配色）
+   全站禁止硬编码颜色，统一使用以下变量。
+   ============================================================ */
+:root {
+  /* 背景层次：深海军蓝 → 稍亮面板 → 更亮的抬升面 */
+  --bg-base: #0A1628;
+  --bg-panel: #0F2138;
+  --bg-elevated: #152A45;
+
+  /* 边框与描边 */
+  --border: #1E3A5F;
+  --border-light: #274a73;
+
+  /* 文字 */
+  --text-primary: #E6EEF8;
+  --text-secondary: #9FB4CC;
+  --text-muted: #5E7793;
+
+  /* 强调与状态色 */
+  --accent: #2F80ED;
+  --accent-hover: #4C97F5;
+  --accent-soft: rgba(47, 128, 237, 0.15);
+  --danger: #E5484D;
+  --danger-hover: #F0666A;
+  --success: #2FBF71;
+  --warning: #E8A33D;
+
+  /* 热力图配色端点（canvas 内使用 jet/turbo 计算，无数据占位色） */
+  --heat-empty: #0B1D33;
+  --heat-border: #1E3A5F;
+
+  /* 阴影与圆角 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ─── 通用输入框 ─── */
+.wk-input {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.wk-input::placeholder {
+  color: var(--text-muted);
+}
+.wk-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ─── 通用按钮 ─── */
+.wk-btn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+.wk-btn:hover:not(:disabled) {
+  border-color: var(--border-light);
+}
+.wk-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.wk-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.wk-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.wk-btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.wk-btn-danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+/* ============================================================
+   登录页
+   ============================================================ */
+.login-wrap {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+      1200px 600px at 50% -10%,
+      rgba(47, 128, 237, 0.12),
+      transparent 60%
+    ),
+    var(--bg-base);
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 40px 32px;
+  text-align: center;
+}
+.login-logo {
+  max-height: 72px;
+  max-width: 180px;
+  object-fit: contain;
+  margin-bottom: 16px;
+}
+.login-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 28px;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+.login-field {
+  display: block;
+  width: 100%;
+  margin-bottom: 18px;
+  text-align: left;
+}
+.login-btn {
+  width: 100%;
+}
+
+/* ============================================================
+   采集页
+   ============================================================ */
+.capture-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-base);
+}
+
+/* 顶部条 */
+.cap-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.cap-top-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cap-back {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.cap-back:hover {
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+.cap-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.cap-top-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  justify-content: center;
+  min-width: 240px;
+}
+.cap-conn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.conn-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.conn-dot.online {
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+.conn-dot.connecting {
+  background: var(--warning);
+}
+.conn-dot.offline {
+  background: var(--danger);
+}
+.cap-tiles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tile-ind {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.tile-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.tile-dot.on {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+.cap-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cap-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.cap-field .wk-input {
+  padding: 6px 10px;
+  width: 120px;
+}
+.cap-field .wk-input.small {
+  width: 80px;
+}
+
+/* 主区 2x2 热力图 */
+.cap-main {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+}
+.heat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* 一整条步道点云舞台：填满主显示区 */
+.gait-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0a1628;
+}
+
+.heat-cell {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.heat-cell-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  align-self: flex-start;
+}
+.heat-canvas {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  image-rendering: pixelated;
+  background: var(--heat-empty);
+  border: 1px solid var(--heat-border);
+  border-radius: var(--radius-sm);
+}
+.heat-empty-txt {
+  position: absolute;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.heat-canvas-box {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 底部操作条 */
+.cap-bottombar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.cap-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.cap-stat-val {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cap-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* toast */
+.wk-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+  font-size: 13px;
+}
+
+/* 登录页导入按钮：与进入按钮同宽，次要样式 */
+.login-import-btn {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* ─── 回放页 ─── */
+.replay-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-base);
+}
+.replay-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+.replay-filename {
+  color: var(--text-secondary);
+  font-size: 13px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.replay-bottombar {
+  gap: 20px;
+}
+.replay-timeline {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.replay-range {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.replay-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.replay-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.replay-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wk-speed-btn {
+  padding: 6px 12px;
+}
+.wk-speed-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ─── 终端式日志面板 ─── */
+.log-console {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: #060E1A;
+  overflow: hidden;
+}
+.log-console-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.log-console-title { color: var(--text-secondary); font-weight: 600; }
+.log-console-count { color: var(--text-muted); }
+.log-console-chk { color: var(--text-muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.log-console-btn {
+  background: transparent;
+  border: 1px solid var(--border-light, #274a73);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.log-console-btn:hover { border-color: var(--accent); color: var(--accent); }
+.log-console-body {
+  overflow-y: auto;
+  padding: 8px 10px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.log-line { white-space: pre-wrap; word-break: break-all; }
+.log-ts { color: #45607e; margin-right: 8px; }

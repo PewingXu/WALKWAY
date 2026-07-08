@@ -1,0 +1,14 @@
+node_modules/
+front-end/node_modules/
+front-end/dist/
+dist/
+python/runtime/
+python/venv/
+**/__pycache__/
+*.pyc
+**/temp_denoised/
+
+# 样本/患者数据（勿入库，隐私）
+*.xlsx
+*.xls
+sample_data/

@@ -1,0 +1,63 @@
+{
+  "name": "walkway",
+  "version": "0.1.0",
+  "description": "足底压力步道采集与报告工具",
+  "main": "electron/main.js",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev:front": "npm --prefix front-end run dev",
+    "build:front": "npm --prefix front-end run build",
+    "start": "electron .",
+    "dev": "concurrently \"npm run dev:front\" \"cross-env VITE_DEV_SERVER_URL=http://localhost:5273 electron .\"",
+    "build": "npm run build:front && electron-builder -w"
+  },
+  "dependencies": {
+    "serialport": "13.0.0",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.jq.walkway",
+    "productName": "步道采集系统",
+    "asar": true,
+    "npmRebuild": false,
+    "files": [
+      "electron/**/*",
+      "serial/**/*",
+      "front-end/dist/**/*",
+      "assets/**/*",
+      "!**/__pycache__/**",
+      "!**/*.pyc"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/temp_denoised/**"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "assets/logo.ico",
+      "forceCodeSigning": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
