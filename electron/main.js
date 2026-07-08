@@ -284,12 +284,21 @@ function sendLog(line, level = 'info') {
   console.log(`[log:${level}]`, line)
 }
 
-// 建一个时间戳命名的临时工作目录
+// 建一个时间戳命名的临时工作目录（放中间 CSV / 图表）
 function makeWorkDir() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const workDir = path.join(app.getPath('temp'), `walkway-${stamp}`)
   fs.mkdirSync(workDir, { recursive: true })
   return workDir
+}
+
+// 报告输出目录：开发期放项目根 reports/；打包后放「我的文档/步道报告」（安装目录通常不可写）
+function getReportsDir() {
+  const dir = isPackaged
+    ? path.join(app.getPath('documents'), '步道报告')
+    : path.join(__dirname, '..', 'reports')
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
 }
 
 // 净化 Windows 文件名（去掉 \ / : * ? " < > | 及控制字符，限长）
@@ -306,7 +315,8 @@ function runReport(workDir, rawName, rawWeight) {
   const weight = Number(rawWeight) > 0 ? Number(rawWeight) : 80
   const stamp = path.basename(workDir).replace('walkway-', '')
   // 文件名用净化后的姓名（非法字符会导致保存 PDF 崩溃 Errno 22）；报告标题仍用原始姓名
-  const outputPdf = path.join(workDir, `步道报告_${sanitizeFileName(name)}_${stamp}.pdf`)
+  // 输出到 reports 目录（非临时目录），生成后自动打开
+  const outputPdf = path.join(getReportsDir(), `步道报告_${sanitizeFileName(name)}_${stamp}.pdf`)
   // 优先级：内置 runtime > 开发期指定的 WALKWAY_PYTHON > 系统 python
   const pythonBin = getPackagedPythonBinary() || process.env.WALKWAY_PYTHON || 'python'
   const env = getPackagedPythonEnv()
