@@ -12,3 +12,6 @@ python/venv/
 *.xlsx
 *.xls
 sample_data/
+
+# 报告输出与测试数据（勿入库）
+reports/
