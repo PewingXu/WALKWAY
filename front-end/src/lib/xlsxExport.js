@@ -22,10 +22,16 @@ function pad2(n) {
   return n < 10 ? '0' + n : '' + n
 }
 
-/** ts(ms) → 'YYYY-MM-DD' */
+/** ts(ms) → 'YYYY-MM-DD'（用于 sheet 内 date 列，与 express 一致） */
 function toDateStr(ts) {
   const d = new Date(ts)
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+/** ts(ms) → 'YYYY_MM_DD_HHMMSS'（用于文件名，对齐 express "四项评估数据" 命名） */
+export function fileStampFromTs(ts) {
+  const d = new Date(ts)
+  return `${d.getFullYear()}_${pad2(d.getMonth() + 1)}_${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`
 }
 
 /** 计算一块 4096 数组的统计。arr 为 null 时返回全空。 */

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { backendBridge } from '../lib/BackendBridge.js'
 import { buildCsvRow, buildCsv } from '../lib/csvExport.js'
-import { buildWalkwayXlsxBase64, dateStrFromTs } from '../lib/xlsxExport.js'
+import { buildWalkwayXlsxBase64, fileStampFromTs } from '../lib/xlsxExport.js'
 import { parseWorkbookArrayBuffer } from '../lib/dataImport.js'
 import { setReplayFrames } from '../lib/replayStore.js'
 import HeatmapGrid from '../components/HeatmapGrid.jsx'
@@ -200,8 +200,9 @@ export default function Capture() {
       const { canceled, path } = await api.selectExportDirectory()
       if (canceled) return
       const base64 = buildWalkwayXlsxBase64(rows)
-      const dateStr = dateStrFromTs(rows[0].ts)
-      const fileName = `${name || '步道'}_${dateStr}_步道数据.xlsx`
+      // 命名对齐 express「四项评估数据」：姓名_YYYY_MM_DD_HHMMSS_四项评估数据.xlsx
+      // （本工具只采集步道，文件内只含「行走步态评估」这一页）
+      const fileName = `${name || '步道'}_${fileStampFromTs(rows[0].ts)}_四项评估数据.xlsx`
       await api.writeExportFile({
         directoryPath: path,
         fileName,
