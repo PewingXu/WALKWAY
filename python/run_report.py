@@ -88,7 +88,7 @@ def main():
             args.output,
             patient_name=args.name,
             body_weight_kg=args.weight,
-            fps=77,
+            fps=45,
         )
         print(f"[成功] 报告已生成: {out}")
         return 0

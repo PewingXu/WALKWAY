@@ -20,6 +20,17 @@ function checkDevServer(url, timeoutMs = 800) {
   })
 }
 
+// 轮询等待 Vite 就绪：concurrently 会并行启动 Vite 与 Electron，
+// Electron 常抢跑（Vite 还没起来），单次探测失败就会误回退 dist。
+// 这里重试等待，直到就绪或超时（默认 ~20s）。
+async function waitForDevServer(url, { retries = 40, intervalMs = 500 } = {}) {
+  for (let i = 0; i < retries; i++) {
+    if (await checkDevServer(url)) return true
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  return false
+}
+
 // 自定义 app:// 协议加载构建产物。
 // 原因：Vite 产出的 index.html 是 <script type="module" crossorigin>，
 // ES module 恒以 CORS 模式加载；用 file:// 打开时源为 null 会被 CORS 拦截 → 白屏。
@@ -60,6 +71,16 @@ const pythonDir = isPackaged
   ? path.join(process.resourcesPath, 'python')
   : path.join(__dirname, '..', 'python')
 const runReportScript = path.join(pythonDir, 'run_report.py')
+
+// 开发期：自动定位项目内置 venv 的 python（scripts/prepare-python 未跑时的兜底）
+// 这样无论用哪种方式启动（npm start / npm run dev / 启动.bat）都能用上装好依赖的解释器
+function getDevVenvPython() {
+  if (isPackaged) return null
+  const candidates = process.platform === 'win32'
+    ? [path.join(pythonDir, 'venv', 'Scripts', 'python.exe')]
+    : [path.join(pythonDir, 'venv', 'bin', 'python3'), path.join(pythonDir, 'venv', 'bin', 'python')]
+  return candidates.find((p) => fs.existsSync(p)) || null
+}
 
 // ── 设备后端（串口服务）位置 ──
 const serialServerScript = path.join(__dirname, '..', 'serial', 'gaitSerialServer.js')
@@ -111,7 +132,15 @@ async function createWindow() {
   //  - WALKWAY_LOAD_DIST=1 可强制用 dist（跳过探测）
   let useDevServer = false
   if (!isPackaged && process.env.WALKWAY_LOAD_DIST !== '1') {
-    useDevServer = await checkDevServer(devServerUrl)
+    // npm run dev 会显式设置 VITE_DEV_SERVER_URL：轮询等待 Vite 就绪（避免抢跑回退 dist）。
+    // 直接 electron . / npm start 未设置该变量：单次探测，连不上就用 dist。
+    if (process.env.VITE_DEV_SERVER_URL) {
+      console.log('[window] 等待 Vite 开发服务器就绪…', devServerUrl)
+      useDevServer = await waitForDevServer(devServerUrl)
+      if (!useDevServer) console.warn('[window] 等待 Vite 超时，回退加载 dist')
+    } else {
+      useDevServer = await checkDevServer(devServerUrl)
+    }
   }
 
   if (useDevServer) {
@@ -153,6 +182,8 @@ function startDeviceServer() {
       appPath: app.getAppPath(),
       userData: app.getPath('userData'),
       resourcesPath: process.resourcesPath || '',
+      // 登录页密钥写入的设备映射文件；顶到最高优先级（文件不存在时服务端自动回落到 serial/serial.txt）
+      WALKWAY_SERIAL_TXT: getDeviceKeyPath(),
     },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   })
@@ -192,11 +223,109 @@ function stopDeviceServer() {
   deviceChild = null
 }
 
+// 重启串口服务：写入新设备映射后调用，让已连接的垫子按新映射重新识别。
+// 等旧进程退出（释放 WS 端口）后再拉起新进程，避免端口占用冲突。
+function restartDeviceServer() {
+  const child = deviceChild
+  if (!child) {
+    startDeviceServer()
+    return
+  }
+  deviceChild = null
+  child.once('exit', () => setTimeout(startDeviceServer, 300))
+  try {
+    child.send({ type: 'shutdown' })
+  } catch (e) {}
+  try {
+    child.kill('SIGTERM')
+  } catch (e) {}
+}
+
+// 设备映射文件路径（userData/serial.txt）——登录页密钥写入的目标，也是串口服务读取的首选。
+function getDeviceKeyPath() {
+  return path.join(app.getPath('userData'), 'serial.txt')
+}
+
+// 从密钥的 key 字段提取有效的 MAC→footN 映射（与 gaitSerialServer 读取口径一致，用于校验/回显）。
+function extractFootMap(keyField) {
+  let mapObj = null
+  if (keyField && typeof keyField === 'object' && !Array.isArray(keyField)) {
+    mapObj = keyField
+  } else if (typeof keyField === 'string') {
+    let text = keyField.trim()
+    // 云端下发格式 {"key":<map>,"orgName":...}：优先按整体 JSON 解析后取 .key
+    try {
+      const o = JSON.parse(text)
+      if (o && typeof o === 'object') mapObj = o.key && typeof o.key === 'object' ? o.key : o
+    } catch (e) {}
+    if (!mapObj) {
+      // 宽松字符串：形如 "MAC1":"foot1","MAC2":"foot2"
+      const map = {}
+      text
+        .replace(/'/g, '"')
+        .split(/[,;\n]+/)
+        .forEach((part) => {
+          const m = part.match(/^\s*"?([^":=]+)"?\s*[:=]\s*"?([^"]+)"?\s*$/)
+          if (m) map[m[1].trim()] = m[2].trim()
+        })
+      if (Object.keys(map).length) mapObj = map
+    }
+  }
+  const mapping = {}
+  if (mapObj && typeof mapObj === 'object') {
+    for (const k of Object.keys(mapObj)) {
+      const v = String(mapObj[k]).trim().toLowerCase()
+      if (/^foot[1-4]$/.test(v)) mapping[k] = v
+    }
+  }
+  return { count: Object.keys(mapping).length, mapping }
+}
+
 /* ─────────────────────── IPC ─────────────────────── */
 function registerIpc() {
   ipcMain.handle('get-app-version', () => ({ version: app.getVersion() }))
 
   ipcMain.handle('get-device-status', () => deviceState)
+
+  // 登录页密钥 → 写入本地设备映射文件（serial.txt），并重启串口服务使映射立即生效。
+  // 密钥即配置串：可为「纯映射对象」「云端下发格式 {key,orgName}」或「宽松字符串」。
+  // 统一归一化为 { key:<映射>, orgName } 写入，与 gaitSerialServer 的读取口径一致。
+  ipcMain.handle('save-device-key', async (_event, payload = {}) => {
+    const key = typeof payload.key === 'string' ? payload.key.trim() : ''
+    if (!key) return { ok: false, error: '密钥为空' }
+
+    let fileObj
+    try {
+      const parsed = JSON.parse(key)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.key != null) {
+        fileObj = parsed // 已是完整格式（含 key 字段），原样保留
+      } else {
+        fileObj = { key: parsed, orgName: 'walkway-local' }
+      }
+    } catch (e) {
+      fileObj = { key, orgName: 'walkway-local' } // 宽松字符串，交给服务端宽松解析
+    }
+
+    const { count, mapping } = extractFootMap(fileObj.key)
+    const content = JSON.stringify(fileObj, null, 2)
+    const target = getDeviceKeyPath()
+
+    let changed = true
+    try {
+      changed = fs.readFileSync(target, 'utf-8') !== content
+    } catch (e) {}
+
+    try {
+      await fs.promises.mkdir(path.dirname(target), { recursive: true })
+      await fs.promises.writeFile(target, content, 'utf-8')
+    } catch (e) {
+      return { ok: false, error: `写入设备映射失败：${e.message}` }
+    }
+
+    sendLog(`已写入设备映射（识别到 ${count} 块）：${target}`, count > 0 ? 'success' : 'info')
+    if (changed) restartDeviceServer()
+    return { ok: true, count, mapping, path: target }
+  })
 
   ipcMain.handle('select-export-directory', async () => {
     const win = BrowserWindow.getFocusedWindow()
@@ -318,7 +447,7 @@ function runReport(workDir, rawName, rawWeight) {
   // 输出到 reports 目录（非临时目录），生成后自动打开
   const outputPdf = path.join(getReportsDir(), `步道报告_${sanitizeFileName(name)}_${stamp}.pdf`)
   // 优先级：内置 runtime > 开发期指定的 WALKWAY_PYTHON > 系统 python
-  const pythonBin = getPackagedPythonBinary() || process.env.WALKWAY_PYTHON || 'python'
+  const pythonBin = getPackagedPythonBinary() || process.env.WALKWAY_PYTHON || getDevVenvPython() || 'python'
   const env = getPackagedPythonEnv()
   const args = [
     runReportScript,

@@ -2,7 +2,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-const PY_VERSION = '3.11'
+const PY_VERSION = '3.13'
 
 function getResourcesBase(resourceBase = null) {
   return resourceBase || process.env.resourcesPath || process.resourcesPath || ''

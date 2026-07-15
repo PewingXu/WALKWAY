@@ -60,8 +60,8 @@ const RAW_ISLAND_MIN = 12      // removeSmallIslands64x64(pointArr, 12)
 const footFilterConfig = {
   gait: {
     filterEnabled: true,
-    filterThreshold: 15,   // 低压力阈值
-    filterMinArea: 20,     // 最小连通域面积
+    filterThreshold: 10,   // 低压力阈值（原15；降到10以保留脚跟初触的低压接触）
+    filterMinArea: 0,      // 面积过滤已关闭（0=不移除小连通域）；仅保留 filterThreshold 低压去噪
     optimizeEnabled: true, // 坏线补值开关（步道模式下单 tile 不补，合并后由前端处理）
     optimizeBad: 40,
     optimizeGood: 100,
@@ -196,7 +196,8 @@ function denoiseFootData(arr, threshold, minArea) {
   for (let i = 0; i < arr.length; i++) {
     if (arr[i] < threshold) arr[i] = 0
   }
-  // 步骤2：BFS 连通域分析，移除小区域
+  // 步骤2：BFS 连通域分析，移除小区域（minArea<=0 时跳过面积过滤，仅保留低压阈值去噪）
+  if (minArea <= 0) return arr
   const visited = new Array(arr.length).fill(false)
   const dirs = [-1, 0, 1]
   for (let idx = 0; idx < arr.length; idx++) {
@@ -827,9 +828,9 @@ async function connectPort() {
       dataItem.premission = true
       if (!dataItem.type) dataItem.type = 'foot'
 
-      // 原始清洗
+      // 原始清洗（面积过滤已关闭：不移除小连通域，仅保留低压阈值去噪）
       zeroBelowThreshold(pointArr, RAW_ZERO_THRESHOLD)
-      removeSmallIslands64x64(pointArr, RAW_ISLAND_MIN)
+      // removeSmallIslands64x64(pointArr, RAW_ISLAND_MIN) // 已关闭面积过滤
 
       // 方向归一化：默认走广州逻辑；北京分支保留但由 REGION 开关关闭
       let flippedArr

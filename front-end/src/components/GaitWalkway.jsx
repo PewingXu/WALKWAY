@@ -43,11 +43,12 @@ export default function GaitWalkway({
   particleParams = {},
   transformParams = {},
   optimizeEnabled = true,
+  flip = false,
   onSceneReady = null,
 }) {
   const containerRef = useRef(null)
-  const propsRef = useRef({ sensorData, particleParams, transformParams, optimizeEnabled })
-  propsRef.current = { sensorData, particleParams, transformParams, optimizeEnabled }
+  const propsRef = useRef({ sensorData, particleParams, transformParams, optimizeEnabled, flip })
+  propsRef.current = { sensorData, particleParams, transformParams, optimizeEnabled, flip }
 
   useEffect(() => {
     const container = containerRef.current
@@ -231,7 +232,7 @@ export default function GaitWalkway({
     // 每个 64×64 传感器顺时针旋转 90 度后再拼接
     // 顺时针 90°：原 (row,col) → 新 (col, 63-row)
     function mergeSensorData() {
-      const { sensorData: sd } = propsRef.current
+      const { sensorData: sd, flip } = propsRef.current
       ndata.fill(0)
       for (let s = 0; s < 4; s++) {
         const key = SENSOR_KEYS[s]
@@ -241,9 +242,14 @@ export default function GaitWalkway({
         for (let row = 0; row < 64 && row < matrix.length; row++) {
           for (let col = 0; col < 64 && col < matrix[row].length; col++) {
             // 顺时针旋转 90 度：新行 = col，新列 = 63 - row
-            const newRow = col
-            const newCol = 63 - row
-            ndata[newRow * NY + colOffset + newCol] = matrix[row][col]
+            let R = col // 短轴（跨步道）
+            let C = colOffset + (63 - row) // 长轴（走行方向）
+            if (flip) {
+              // 左右翻转：长/短轴同时反转（= 地平面 180°，反转走行方向，左右脚保持不变）
+              R = NX - 1 - R
+              C = NY - 1 - C
+            }
+            ndata[R * NY + C] = matrix[row][col]
           }
         }
       }

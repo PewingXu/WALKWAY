@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import GaitWalkway from '../components/GaitWalkway.jsx'
+import WalkwayFlatHeatmap from '../components/WalkwayFlatHeatmap.jsx'
 import { getReplayFrames, getReplayMeta } from '../lib/replayStore.js'
 import { framesToTemplateCsvs, frameToMatrices, frameTimeStr } from '../lib/dataImport.js'
 import LogConsole from '../components/LogConsole.jsx'
@@ -22,6 +23,10 @@ export default function Replay() {
   const [name, setName] = useState((meta && meta.name) || '')
   const [weight, setWeight] = useState('')
   const [reportLoading, setReportLoading] = useState(false)
+  // 主视图模式：'walkway' 一整条步道点云（默认）/ 'heatmap' 平面热力图
+  const [viewMode, setViewMode] = useState('walkway')
+  // 显示左右翻转（点云 + 热力图同时反转走行方向）
+  const [flip, setFlip] = useState(false)
 
   const idxRef = useRef(0)
   idxRef.current = idx
@@ -155,11 +160,17 @@ export default function Replay() {
         </div>
       </div>
 
-      {/* 主区：一整条步道点云回放 */}
+      {/* 主区：一整条步道点云回放，或平面热力图 */}
       <div className="cap-main">
-        <div className="gait-stage">
-          <GaitWalkway sensorData={sensorData} />
-        </div>
+        {viewMode === 'walkway' ? (
+          <div className="gait-stage">
+            <GaitWalkway sensorData={sensorData} flip={flip} />
+          </div>
+        ) : (
+          <div className="gait-stage heat-flat-stage">
+            <WalkwayFlatHeatmap sensorData={sensorData} flip={flip} />
+          </div>
+        )}
       </div>
 
       {/* 底部播放控件 */}
@@ -198,6 +209,19 @@ export default function Replay() {
         </div>
 
         <div className="cap-actions">
+          <button
+            className="wk-btn"
+            onClick={() => setViewMode((m) => (m === 'walkway' ? 'heatmap' : 'walkway'))}
+          >
+            {viewMode === 'walkway' ? '切换热力图' : '切换点云步道'}
+          </button>
+          <button
+            className={`wk-btn${flip ? ' wk-btn-primary' : ''}`}
+            onClick={() => setFlip((f) => !f)}
+            title="左右翻转点云 / 热力图显示（反转走行方向）"
+          >
+            {flip ? '已翻转' : '左右翻转'}
+          </button>
           <button
             className="wk-btn wk-btn-primary"
             onClick={handleGenerateReport}

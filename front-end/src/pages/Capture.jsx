@@ -5,7 +5,7 @@ import { buildCsvRow, buildCsv } from '../lib/csvExport.js'
 import { buildWalkwayXlsxBase64, fileStampFromTs } from '../lib/xlsxExport.js'
 import { parseWorkbookArrayBuffer } from '../lib/dataImport.js'
 import { setReplayFrames } from '../lib/replayStore.js'
-import HeatmapGrid from '../components/HeatmapGrid.jsx'
+import WalkwayFlatHeatmap from '../components/WalkwayFlatHeatmap.jsx'
 import GaitWalkway from '../components/GaitWalkway.jsx'
 import LogConsole from '../components/LogConsole.jsx'
 import { pushLog } from '../lib/logBus.js'
@@ -37,6 +37,8 @@ export default function Capture() {
   const [toast, setToast] = useState('')
   // 主视图模式：'walkway' 一整条步道点云（默认）/ 'heatmap' 2x2 热力图
   const [viewMode, setViewMode] = useState('walkway')
+  // 显示左右翻转（点云 + 热力图同时反转走行方向）
+  const [flip, setFlip] = useState(false)
 
   // refs：累积的 CSV 行（每块），采集开关，计时器
   const framesRef = useRef({ 1: [], 2: [], 3: [], 4: [] })
@@ -55,15 +57,7 @@ export default function Capture() {
     showToast._t = window.setTimeout(() => setToast(''), 3000)
   }, [])
 
-  // 默认姓名候选：sessionStorage 里的 key
-  useEffect(() => {
-    try {
-      const k = sessionStorage.getItem('wk_key')
-      if (k) setName(k)
-    } catch (e) {
-      /* noop */
-    }
-  }, [])
+  // 姓名与系统密钥解耦：密钥仅用于进入系统，不再预填姓名。姓名由操作者手动填写。
 
   // ─── 连接 WS 与监听脚垫数据 ───
   useEffect(() => {
@@ -182,6 +176,12 @@ export default function Capture() {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
+  }
+
+  // ─── 一键连接：立即强制重连设备（不必等 3 秒自动重连）───
+  const handleConnect = () => {
+    backendBridge.connect()
+    showToast('正在连接设备…')
   }
 
   // ─── 保存为 express 式宽表 .xlsx（sheet "行走步态评估"）───
@@ -311,12 +311,16 @@ export default function Capture() {
   }
 
   // 综合连接状态
-  const connState = wsConnected ? 'online' : 'connecting'
-  const connText = wsConnected
-    ? deviceReady || !window.electronAPI
-      ? '已连接'
-      : '已连接(设备未就绪)'
-    : '连接中/断开'
+  // 注意：wsConnected 只代表「前端↔本地后端服务」的 WS 通了（服务常驻，始终为真），
+  // 真正的「设备是否连接」要看脚垫在线数（padOnline）。
+  const onlineCount = PADS.reduce((acc, n) => acc + (padOnline[n] ? 1 : 0), 0)
+  const deviceConnected = onlineCount > 0
+  const connState = !wsConnected ? 'offline' : deviceConnected ? 'online' : 'connecting'
+  const connText = !wsConnected
+    ? '服务未连接'
+    : deviceConnected
+      ? `设备已连接 (${onlineCount}/4)`
+      : '等待设备接入…'
 
   const totalFrames = frameCount[1] + frameCount[2] + frameCount[3] + frameCount[4]
 
@@ -344,6 +348,13 @@ export default function Capture() {
               </div>
             ))}
           </div>
+          <button
+            className={`wk-btn cap-connect-btn${deviceConnected ? ' is-connected' : ''}`}
+            onClick={handleConnect}
+            title="立即重新连接设备（无需等待自动重连）"
+          >
+            {deviceConnected ? `✓ 已连接 (${onlineCount}/4) · 重连` : '一键连接'}
+          </button>
         </div>
 
         <div className="cap-top-right">
@@ -381,13 +392,20 @@ export default function Capture() {
                 sensor3: matrices[3],
                 sensor4: matrices[4],
               }}
+              flip={flip}
             />
           </div>
         ) : (
-          <div className="heat-grid">
-            {PADS.map((n) => (
-              <HeatmapGrid key={n} matrix={matrices[n]} label={`${n} 号垫`} />
-            ))}
+          <div className="gait-stage heat-flat-stage">
+            <WalkwayFlatHeatmap
+              sensorData={{
+                sensor1: matrices[1],
+                sensor2: matrices[2],
+                sensor3: matrices[3],
+                sensor4: matrices[4],
+              }}
+              flip={flip}
+            />
           </div>
         )}
       </div>
@@ -419,6 +437,13 @@ export default function Capture() {
             onClick={() => setViewMode((m) => (m === 'walkway' ? 'heatmap' : 'walkway'))}
           >
             {viewMode === 'walkway' ? '切换热力图' : '切换点云步道'}
+          </button>
+          <button
+            className={`wk-btn${flip ? ' wk-btn-primary' : ''}`}
+            onClick={() => setFlip((f) => !f)}
+            title="左右翻转点云 / 热力图显示（反转走行方向）"
+          >
+            {flip ? '已翻转' : '左右翻转'}
           </button>
           <button className="wk-btn" onClick={handleImportClick}>
             导入数据(Excel/CSV)

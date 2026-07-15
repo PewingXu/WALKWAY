@@ -7,7 +7,7 @@
 
 对外入口:
     render_report(result, output_pdf, patient_name='XXX',
-                  body_weight_kg=80.0, fps=77) -> output_pdf
+                  body_weight_kg=80.0, fps=45) -> output_pdf
 
 设计要点:
     * 所有取值均 result.get(...)，任何字段缺失/为空/None 都跳过该块或填 "—"，绝不整体崩溃。
@@ -239,7 +239,7 @@ def _draw_image_framed(c, img_path, x, y_bottom, w, h, bg=None):
 # ==================================================================
 # 主入口
 # ==================================================================
-def render_report(result, output_pdf, patient_name="XXX", body_weight_kg=80.0, fps=77):
+def render_report(result, output_pdf, patient_name="XXX", body_weight_kg=80.0, fps=45):
     if result is None:
         result = {}
 
@@ -436,9 +436,9 @@ def render_report(result, output_pdf, patient_name="XXX", body_weight_kg=80.0, f
     c.setFillColor(_BLACK)
     c.drawString(MARGIN_X + 14 * mm, y - 15 * mm, "足底压力变化过程 (开始 → 结束)")
 
-    # 压力演变图
-    _draw_image_framed(c, img_evolution, MARGIN_X + 1 * mm, y - 137 * mm,
-                       CONTENT_W - 2 * mm, 126 * mm)
+    # 压力演变图（下移+压低高度，避免图框压住上方"足底压力变化过程"标题）
+    _draw_image_framed(c, img_evolution, MARGIN_X + 1 * mm, y - 138 * mm,
+                       CONTENT_W - 2 * mm, 120 * mm)
 
     # 步态平均汇总
     c.setFont(FONT, 18)

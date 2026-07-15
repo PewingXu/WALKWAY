@@ -126,11 +126,14 @@ export function parseWorkbookArrayBuffer(arrayBuffer) {
 export function framesToTemplateCsvs(frames) {
   const rows = { 1: [], 2: [], 3: [], 4: [] }
   for (const f of frames) {
+    const t = (f && f.tiles) || {}
+    // 只保留“四脚齐全”的帧（与 laonianren /getFootPdf 取帧口径一致）。
+    // 若逐脚跳过缺失块，4 路 CSV 长度不齐、时间轴错位，会让步时/交叉步时等出现 ~1% 偏差
+    // （现象：right 0.911 / cross 0.422）；四脚齐全可保证 4 路严格对齐，
+    // 结果与 laonianren 完全一致（right 0.900 / cross 0.444）。
+    if (!(t[1] && t[2] && t[3] && t[4])) continue
     const d = new Date(f.ts)
-    for (let n = 1; n <= 4; n++) {
-      const arr = f.tiles[n]
-      if (arr) rows[n].push(buildCsvRow(arr, d))
-    }
+    for (let n = 1; n <= 4; n++) rows[n].push(buildCsvRow(t[n], d))
   }
   return {
     1: buildCsv(rows[1]),

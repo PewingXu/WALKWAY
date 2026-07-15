@@ -1,13 +1,23 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { parseWorkbookArrayBuffer } from '../lib/dataImport.js'
 import { setReplayFrames } from '../lib/replayStore.js'
+
+const DEVICE_KEY_STORAGE = 'walkway.deviceKey'
 
 export default function Login() {
   const navigate = useNavigate()
   const [key, setKey] = useState('')
   const [logoOk, setLogoOk] = useState(true)
   const importInputRef = useRef(null)
+
+  // 自动回填上次输入的密钥（下次打开无需重复输入）
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DEVICE_KEY_STORAGE)
+      if (saved) setKey(saved)
+    } catch (e) {}
+  }, [])
 
   const handleImportClick = () => {
     if (importInputRef.current) importInputRef.current.value = ''
@@ -20,21 +30,30 @@ export default function Login() {
     try {
       const buf = await file.arrayBuffer()
       const frames = parseWorkbookArrayBuffer(buf)
-      setReplayFrames(frames, { name: key.trim() || '', fileName: file.name })
+      setReplayFrames(frames, { name: '', fileName: file.name })
       navigate('/replay')
     } catch (err) {
       alert('导入失败：' + (err && err.message ? err.message : String(err)))
     }
   }
 
-  const handleEnter = () => {
+  const handleEnter = async () => {
     const k = key.trim()
     if (!k) return
-    // 存到 sessionStorage，作为采集页默认姓名候选
+    // 记忆密钥，下次打开自动回填（密钥与姓名已解耦，仅作进入系统的钥匙 + 设备映射配置串）
     try {
-      sessionStorage.setItem('wk_key', k)
+      localStorage.setItem(DEVICE_KEY_STORAGE, k)
+    } catch (e) {}
+    // 把密钥作为设备映射配置串写入本地 serial.txt，并重启串口服务使四块垫子按映射识别
+    try {
+      if (window.electronAPI && window.electronAPI.saveDeviceKey) {
+        const res = await window.electronAPI.saveDeviceKey(k)
+        if (res && res.ok && res.count === 0) {
+          alert('已保存密钥，但未从中识别到 foot1~foot4 映射，将按发现顺序临时分配。请核对密钥内容。')
+        }
+      }
     } catch (e) {
-      /* noop */
+      // 写入失败不阻断进入（密钥同时作为进入系统的钥匙）
     }
     navigate('/capture')
   }

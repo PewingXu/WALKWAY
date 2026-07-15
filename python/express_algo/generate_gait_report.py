@@ -2824,15 +2824,15 @@ def analyze_gait_and_plot(total_matrix, left_on, left_off, right_on, right_off, 
         
         return aligned_images_list, aligned_cops_list
 
-    left_info, l_h, l_w = collect_foot_data(left_on, left_off, False)
-    right_info, r_h, r_w = collect_foot_data(right_on, right_off, True)
+    left_info, l_h, l_w = collect_foot_data(right_on, right_off, True)   # 引擎 isRight=True = 解剖学左脚 → 左面板
+    right_info, r_h, r_w = collect_foot_data(left_on, left_off, False)   # 引擎 isRight=False = 解剖学右脚 → 右面板
     
     # 统一左右脚的 canvas 大小，确保热力图显示比例一致
     unified_h = max(l_h, r_h)
     unified_w = max(l_w, r_w)
     
-    l_aligned_imgs, l_aligned_cops = plot_debug_and_get_aligned(left_info, unified_h, unified_w, False)
-    r_aligned_imgs, r_aligned_cops = plot_debug_and_get_aligned(right_info, unified_h, unified_w, True)
+    l_aligned_imgs, l_aligned_cops = plot_debug_and_get_aligned(left_info, unified_h, unified_w, True)
+    r_aligned_imgs, r_aligned_cops = plot_debug_and_get_aligned(right_info, unified_h, unified_w, False)
     
     fig_summary, axes_summary = plt.subplots(1, 2, figsize=(12, 8), facecolor='white')
     
@@ -2867,6 +2867,7 @@ def analyze_gait_and_plot(total_matrix, left_on, left_off, right_on, right_off, 
     else:
         ax_l.text(0.5, 0.5, "No Data", color='white', ha='center'); ax_l.axis('off')
     ax_l.set_xticks([]); ax_l.set_yticks([])
+    ax_l.invert_xaxis()  # 水平镜像，与足印热力图(plot_all_largest_regions_heatmap 的 np.fliplr)左右朝向对齐
 
     # 2. 右脚 (Right Foot)
     ax_r = axes_summary[1]
@@ -2893,6 +2894,7 @@ def analyze_gait_and_plot(total_matrix, left_on, left_off, right_on, right_off, 
     else:
         ax_r.text(0.5, 0.5, "No Data", color='white', ha='center'); ax_r.axis('off')
     ax_r.set_xticks([]); ax_r.set_yticks([])
+    ax_r.invert_xaxis()  # 水平镜像，与足印热力图左右朝向对齐
 
     plt.suptitle("步态平均摘要（平滑处理）", fontsize=16, color='black')
     plt.tight_layout()
@@ -3082,14 +3084,15 @@ def plot_dynamic_pressure_evolution(total_matrix, left_on, left_off, right_on, r
                 ax.set_xticks([]); ax.set_yticks([])
                 font_weight = 'bold' if "峰值" in selected_titles[k] else 'normal'
                 ax.set_title(selected_titles[k], color='black', fontsize=9, fontweight=font_weight)
+                ax.invert_xaxis()  # 水平镜像，与足印热力图左右朝向对齐
             else:
                 ax.axis('off')
 
-    # 执行
-    process_foot(left_on, left_off, False, axes[0])
+    # 执行（引擎 isRight 与解剖学左右相反：isRight=True 才是解剖学左脚 → 放第一行"左脚"）
+    process_foot(right_on, right_off, True, axes[0])
     axes[0, 0].set_ylabel("左脚", fontsize=14, rotation=0, labelpad=40, va='center')
 
-    process_foot(right_on, right_off, True, axes[1])
+    process_foot(left_on, left_off, False, axes[1])
     axes[1, 0].set_ylabel("右脚", fontsize=14, rotation=0, labelpad=40, va='center')
 
     plt.suptitle("足底压力演变（落地 → 离地）", fontsize=16, y=0.98)

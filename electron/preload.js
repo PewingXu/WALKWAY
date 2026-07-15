@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ====== 设备后端状态 ======
   // 返回 { ready, port, error? }
   getDeviceStatus: () => ipcRenderer.invoke('get-device-status'),
+  // 保存登录页密钥为本地设备映射（写 serial.txt 并重启串口服务）
+  // 返回 { ok, count?, mapping?, path?, error? }
+  saveDeviceKey: (key) => ipcRenderer.invoke('save-device-key', { key }),
   // 监听设备后端事件（ready / error / log）
   onDeviceEvent: (callback) => {
     const handler = (_event, data) => callback(data)

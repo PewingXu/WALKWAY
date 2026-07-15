@@ -229,6 +229,21 @@ button {
   font-size: 13px;
   color: var(--text-secondary);
 }
+/* 一键连接按钮：未连接时高亮提示，已连接时绿色可再次重连 */
+.cap-connect-btn {
+  padding: 6px 14px;
+  white-space: nowrap;
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.cap-connect-btn:hover:not(:disabled) {
+  border-color: var(--warning);
+  filter: brightness(1.15);
+}
+.cap-connect-btn.is-connected {
+  border-color: var(--success);
+  color: var(--success);
+}
 .conn-dot {
   width: 10px;
   height: 10px;
@@ -311,6 +326,31 @@ button {
   border-radius: var(--radius);
   overflow: hidden;
   background: #0a1628;
+}
+
+/* 四块衔接的平面热力图舞台 */
+.heat-flat-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.walkway-flat {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.walkway-flat-canvas {
+  width: 100%;
+  max-width: 1200px;
+  aspect-ratio: 256 / 64; /* 四块 64×64 沿长轴拼接 = 4:1 */
+  image-rendering: pixelated; /* 直接显示原始方格，放大时保持硬边不平滑 */
+  background: var(--heat-empty);
+  border: 1px solid var(--heat-border);
+  border-radius: var(--radius-sm);
 }
 
 .heat-cell {

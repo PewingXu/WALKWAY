@@ -17,6 +17,7 @@
     "ws": "^8.18.2"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^31.3.0",
@@ -26,6 +27,11 @@
     "appId": "com.jq.walkway",
     "productName": "步道采集系统",
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/serialport/**",
+      "**/node_modules/@serialport/**",
+      "**/*.node"
+    ],
     "npmRebuild": false,
     "files": [
       "electron/**/*",
@@ -43,7 +49,8 @@
           "**/*",
           "!**/__pycache__/**",
           "!**/*.pyc",
-          "!**/temp_denoised/**"
+          "!**/temp_denoised/**",
+          "!venv/**"
         ]
       }
     ],
