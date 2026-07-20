@@ -33,25 +33,46 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 
-# ================= 字体（复用 foot-template.py 的注册与回退） =================
-_FONT_PATH = r"C:\Windows\Fonts\msyh.ttc"
-_FONT_BOLD = r"C:\Windows\Fonts\msyhbd.ttc"
+# ================= 字体（跨平台：优先内置 msyh，回退 mac 系统字体 / reportlab 内置中文CID） =================
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+import matplotlib.font_manager as fm
 
-if os.path.exists(_FONT_PATH):
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_BUNDLED = os.path.join(_HERE, "fonts", "msyh.ttc")
+_BUNDLED_B = os.path.join(_HERE, "fonts", "msyhbd.ttc")
+
+FONT = "Helvetica"
+FONT_B = "Helvetica-Bold"
+# reportlab 正文字体：内置 msyh → Windows 系统 msyh → reportlab 内置中文 CID（mac 无字体文件时兜底）
+for _p, _pb in [
+    (_BUNDLED, _BUNDLED_B),
+    (r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\msyhbd.ttc"),
+]:
+    if os.path.exists(_p):
+        try:
+            pdfmetrics.registerFont(TTFont("YaHei", _p))
+            pdfmetrics.registerFont(TTFont("YaHei-Bold", _pb if os.path.exists(_pb) else _p))
+            FONT, FONT_B = "YaHei", "YaHei-Bold"
+            break
+        except Exception:
+            pass
+if FONT == "Helvetica":
     try:
-        pdfmetrics.registerFont(TTFont("YaHei", _FONT_PATH))
-        pdfmetrics.registerFont(TTFont("YaHei-Bold", _FONT_BOLD))
-        FONT = "YaHei"
-        FONT_B = "YaHei-Bold"
+        pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        FONT = FONT_B = "STSong-Light"
     except Exception:
-        FONT = "Helvetica"
-        FONT_B = "Helvetica-Bold"
-else:
-    FONT = "Helvetica"
-    FONT_B = "Helvetica-Bold"
+        pass
 
-# matplotlib 中文
-plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial"]
+# matplotlib 中文：尽量把内置字体喂给 font_manager；并给一串跨平台候选（Windows/mac 都能命中）
+try:
+    if os.path.exists(_BUNDLED):
+        fm.fontManager.addfont(_BUNDLED)
+except Exception:
+    pass
+plt.rcParams["font.sans-serif"] = [
+    "Microsoft YaHei", "PingFang SC", "Heiti SC", "STHeiti",
+    "Arial Unicode MS", "Hiragino Sans GB", "SimHei", "Arial",
+]
 plt.rcParams["axes.unicode_minus"] = False
 
 

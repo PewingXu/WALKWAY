@@ -52,8 +52,11 @@ styles.add(ParagraphStyle(name='ChineseHeading1', parent=styles['Heading1'], fon
 styles.add(ParagraphStyle(name='ChineseHeading2', parent=styles['Heading2'], fontName=MY_FONT_NAME, fontSize=14, leading=14, spaceAfter=10))
 styles.add(ParagraphStyle(name='Chinese', parent=styles['Normal'], fontName=MY_FONT_NAME, fontSize=12))
 
-# 设置 matplotlib 支持中文显示
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial']
+# 设置 matplotlib 支持中文显示（跨平台：Windows/mac 都能命中）
+plt.rcParams['font.sans-serif'] = [
+    'Microsoft YaHei', 'PingFang SC', 'Heiti SC', 'STHeiti',
+    'Arial Unicode MS', 'Hiragino Sans GB', 'SimHei', 'Arial',
+]
 plt.rcParams['axes.unicode_minus'] = False
 
 # ==================================================================================

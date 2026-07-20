@@ -15,3 +15,7 @@ sample_data/
 
 # 报告输出与测试数据（勿入库）
 reports/
+
+# 内置字体（体积大，不入库；mac 用 reportlab CID + 系统中文字体兜底）
+python/fonts/*.ttc
+python/fonts/*.ttf
