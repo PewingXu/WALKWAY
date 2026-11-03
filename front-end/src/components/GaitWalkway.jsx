@@ -60,13 +60,18 @@ export default function GaitWalkway({
     const bigArrg = new Float32Array(AX * AY)
     const smoothBig = new Float32Array(AX * AY)
     const positions = new Float32Array(TOTAL * 3)
-    const colors = new Float32Array(TOTAL * 3)
+    // RGBA：第 4 个分量是逐点透明度，用于让无压力粒子在亮色背景上淡出
+    const colors = new Float32Array(TOTAL * 4)
     const scales = new Float32Array(TOTAL)
+    // 压力占色阶比例低于此值的粒子线性淡出（0 → 完全透明）。
+    // 只用于抹掉零压力底噪，取值要小：色阶低端本身是深蓝，不需要再靠透明度压暗。
+    const FADE_IN = 0.012
 
     // 初始化位置（逆时针旋转 90 度：原 (ix,iy) → 新 X=(AY-1-iy), 新 Z=ix）
     const padWidth = AX * SEP
     const padDepth = AY * SEP
     let i3 = 0,
+      i4 = 0,
       i1 = 0
     for (let ix = 0; ix < AX; ix++) {
       for (let iy = 0; iy < AY; iy++) {
@@ -74,10 +79,12 @@ export default function GaitWalkway({
         positions[i3 + 1] = 0
         positions[i3 + 2] = ix * SEP - padWidth / 2
         scales[i1] = 1
-        colors[i3] = 0
-        colors[i3 + 1] = 0
-        colors[i3 + 2] = 1
+        colors[i4] = 0
+        colors[i4 + 1] = 0
+        colors[i4 + 2] = 1
+        colors[i4 + 3] = 0 // 初始全透明：未接触时不显示粒子
         i3 += 3
+        i4 += 4
         i1++
       }
     }
@@ -85,7 +92,7 @@ export default function GaitWalkway({
     /* ─── 几何体 & 材质 ─── */
     const geometry = new THREE.BufferGeometry()
     const posAttr = new THREE.BufferAttribute(positions, 3)
-    const colAttr = new THREE.BufferAttribute(colors, 3)
+    const colAttr = new THREE.BufferAttribute(colors, 4)
     geometry.setAttribute('position', posAttr)
     geometry.setAttribute('color', colAttr)
     geometry.setAttribute('scale', new THREE.BufferAttribute(scales, 1))
@@ -120,13 +127,15 @@ export default function GaitWalkway({
     const scene = new THREE.Scene()
     scene.add(group)
 
-    const grid = new THREE.GridHelper(4000, 80)
+    // 亮色主题：浅灰网格（深色网格在白底上会糊成一片）
+    const grid = new THREE.GridHelper(4000, 80, 0xcbd5e1, 0xe3e8ef)
     grid.position.y = -10
-    grid.material.opacity = 0.2
+    grid.material.opacity = 0.65
     grid.material.transparent = true
     scene.add(grid)
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444))
+    // 地面补光取浅灰，避免点云底部在白背景上压暗
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xbfcad6))
     const dl1 = new THREE.DirectionalLight(0xffffff, 0.8)
     dl1.position.set(0, 400, 200)
     scene.add(dl1)
@@ -141,8 +150,8 @@ export default function GaitWalkway({
     if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace
     while (container.firstChild) container.removeChild(container.firstChild)
     container.appendChild(renderer.domElement)
-    // 深蓝背景，贴合暗蓝主题
-    renderer.setClearColor(0x0a1628)
+    // 白色背景，贴合亮色主题（与 .gait-stage 白卡片同色）
+    renderer.setClearColor(0xffffff)
 
     /* ─── 控制器 ─── */
     const controls = new TrackballControls(camera, renderer.domElement)
@@ -300,6 +309,7 @@ export default function GaitWalkway({
 
       // 更新粒子位置和颜色
       let k = 0,
+        c = 0,
         l = 0
       for (let ix = 0; ix < AX; ix++) {
         for (let iy = 0; iy < AY; iy++) {
@@ -312,11 +322,15 @@ export default function GaitWalkway({
           positions[k + 2] = ix * SEP - padWidth / 2
 
           const rgb = jet(0, params.colorRange, smoothBig[l])
-          colors[k] = rgb[0] / 255
-          colors[k + 1] = rgb[1] / 255
-          colors[k + 2] = rgb[2] / 255
+          colors[c] = rgb[0] / 255
+          colors[c + 1] = rgb[1] / 255
+          colors[c + 2] = rgb[2] / 255
+          // 低压力粒子淡出：否则 jet 低端的蓝紫会在白色背景上糊成一整片底噪
+          const t = smoothBig[l] / params.colorRange
+          colors[c + 3] = t <= 0 ? 0 : t >= FADE_IN ? 1 : t / FADE_IN
 
           k += 3
+          c += 4
           l++
         }
       }

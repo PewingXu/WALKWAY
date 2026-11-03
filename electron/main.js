@@ -1,8 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell, protocol } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const http = require('http')
-const { fork, spawn } = require('child_process')
+const { fork, spawn, spawnSync } = require('child_process')
 const { getPackagedPythonBinary, getPackagedPythonEnv } = require('./pythonRuntime')
 
 const isPackaged = app.isPackaged
@@ -72,14 +72,44 @@ const pythonDir = isPackaged
   : path.join(__dirname, '..', 'python')
 const runReportScript = path.join(pythonDir, 'run_report.py')
 
-// 开发期：自动定位项目内置 venv 的 python（scripts/prepare-python 未跑时的兜底）
-// 这样无论用哪种方式启动（npm start / npm run dev / 启动.bat）都能用上装好依赖的解释器
+// 开发期：自动定位可用的 python（scripts/prepare-python 未跑时的兜底）
+// 这样无论用哪种方式启动（npm start / npm run dev / 启动.bat）都能用上装好依赖的解释器。
+// 候选顺序：项目 venv → Anaconda/Miniconda → 常见安装位置。
+// 注意「存在」不等于「可用」：系统 PATH 上的 python 可能是装不了 numpy 的版本
+// （例：3.14 alpha 上 numpy 的 C 扩展加载失败），所以这里要验证能 import numpy。
 function getDevVenvPython() {
   if (isPackaged) return null
-  const candidates = process.platform === 'win32'
-    ? [path.join(pythonDir, 'venv', 'Scripts', 'python.exe')]
-    : [path.join(pythonDir, 'venv', 'bin', 'python3'), path.join(pythonDir, 'venv', 'bin', 'python')]
-  return candidates.find((p) => fs.existsSync(p)) || null
+  const home = app.getPath('home')
+  const isWin = process.platform === 'win32'
+  const candidates = isWin
+    ? [
+        path.join(pythonDir, 'venv', 'Scripts', 'python.exe'),
+        path.join(home, 'anaconda3', 'python.exe'),
+        path.join(home, 'miniconda3', 'python.exe'),
+        path.join('C:\\', 'ProgramData', 'anaconda3', 'python.exe'),
+      ]
+    : [
+        path.join(pythonDir, 'venv', 'bin', 'python3'),
+        path.join(pythonDir, 'venv', 'bin', 'python'),
+        path.join(home, 'anaconda3', 'bin', 'python3'),
+        path.join(home, 'miniconda3', 'bin', 'python3'),
+      ]
+  return candidates.find((p) => fs.existsSync(p) && pythonHasNumpy(p)) || null
+}
+
+// 探测某个解释器能否 import numpy（报告脚本的硬依赖）。结果缓存，避免每次生成报告都探。
+const numpyProbeCache = new Map()
+function pythonHasNumpy(bin) {
+  if (numpyProbeCache.has(bin)) return numpyProbeCache.get(bin)
+  let ok = false
+  try {
+    const r = spawnSync(bin, ['-c', 'import numpy'], { timeout: 20000, windowsHide: true })
+    ok = r.status === 0
+  } catch (e) {
+    ok = false
+  }
+  numpyProbeCache.set(bin, ok)
+  return ok
 }
 
 // ── 设备后端（串口服务）位置 ──
@@ -91,12 +121,17 @@ let deviceState = { ready: false, port: 19999, error: null }
 
 /* ───────────────────────── 窗口 ───────────────────────── */
 async function createWindow() {
+  // 去掉 Electron 默认应用菜单（File/Edit/View/Window/Help）。
+  // 不做这步的话打包安装后菜单栏依然存在 —— 默认菜单与是否打包无关。
+  Menu.setApplicationMenu(null)
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    backgroundColor: '#0A1628',
+    backgroundColor: '#F4F6F9', // 与亮色主题页底一致，避免启动瞬间闪深色
+    autoHideMenuBar: true,
     show: false,
     icon: path.join(__dirname, '..', 'assets', 'logo.ico'),
     webPreferences: {

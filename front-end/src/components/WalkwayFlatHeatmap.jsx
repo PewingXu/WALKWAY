@@ -13,15 +13,14 @@ import { jet, findMax } from '../lib/three-util'
  * props:
  *   - sensorData: { sensor1: 64×64矩阵, sensor2, sensor3, sensor4 }（可能有 null）
  *   - flip: 是否额外旋转 180°（反转走行方向；旋转而非镜像，左右脚保持不变）
+ *   - colorMax: 色阶上限；<=0 表示按当前帧最大值自动拉伸
+ *   - threshold: 噪声过滤阈值（低于此值的单元置 0）
  */
 
 /* ─── 常量 ─── */
 const NX = 64 // 拼接后行数（传感器宽度）→ 画面高度（方格行数）
 const NY = 256 // 拼接后列数（4 × 64）→ 画面宽度（方格列数）
 const SENSOR_KEYS = ['sensor1', 'sensor2', 'sensor3', 'sensor4']
-
-// 后处理参数
-const FILTER_THRESHOLD = 1 // 噪声过滤（低于此值的单元置 0，保留脚跟轻压落地）
 
 /* ─── 坏线补值：修复 64×256 矩阵中异常低值的行/列（消除四块衔接缝隙）─── */
 function zeroLine64x256(arr, rows, cols) {
@@ -86,7 +85,12 @@ function zeroLine64x256(arr, rows, cols) {
   }
 }
 
-export default function WalkwayFlatHeatmap({ sensorData = {}, flip = false }) {
+export default function WalkwayFlatHeatmap({
+  sensorData = {},
+  flip = false,
+  colorMax = 0,
+  threshold = 1,
+}) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -132,12 +136,13 @@ export default function WalkwayFlatHeatmap({ sensorData = {}, flip = false }) {
 
     // 3) 阈值过滤去噪
     for (let i = 0; i < ndata.length; i++) {
-      if (ndata[i] < FILTER_THRESHOLD) ndata[i] = 0
+      if (ndata[i] < threshold) ndata[i] = 0
     }
 
     // 4) 逐单元 jet 配色直接渲染方格（一个传感器单元 = 一个像素方格）；零值透明
     //    ndata 索引 i = R*NY + C 与 NY 宽的 ImageData 像素一一对应
-    const max = findMax(ndata)
+    // 色阶上限：手动值优先；未设置时退回按帧最大值自动拉伸
+    const max = colorMax > 0 ? colorMax : findMax(ndata)
     if (max <= 0) return
     const img = ctx.createImageData(NY, NX)
     const data = img.data
@@ -155,7 +160,7 @@ export default function WalkwayFlatHeatmap({ sensorData = {}, flip = false }) {
       data[idx + 3] = 255
     }
     ctx.putImageData(img, 0, 0)
-  }, [sensorData, flip])
+  }, [sensorData, flip, colorMax, threshold])
 
   return (
     <div className="walkway-flat">

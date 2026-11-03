@@ -74,6 +74,7 @@ export default function Login() {
           />
         )}
         <h1 className="login-title">步道足底压力采集系统</h1>
+        <p className="login-subtitle">Foot Pressure Walkway</p>
         <label className="login-field">
           <input
             className="wk-input"

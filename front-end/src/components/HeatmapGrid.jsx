@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { jet } from '../lib/three-util'
 
 /**
  * HeatmapGrid - 64x64 压力热力图（canvas 渲染 + CSS 放大）
@@ -8,33 +9,12 @@ import { useRef, useEffect } from 'react'
  *  - label:  标注文本（如 "1 号垫"）
  *
  * 实现：用 ImageData 一次性绘制 64x64 像素，再由 CSS 放大到显示尺寸
- * （image-rendering: pixelated）。使用 jet/turbo 风格配色。
+ * （image-rendering: pixelated）。配色统一走 three-util 的 jet 色阶。
  */
 
-// turbo/jet 风格配色：t ∈ [0,1] -> [r,g,b]
+// t ∈ [0,1] -> [r,g,b]，复用全站统一色阶
 function turbo(t) {
-  if (t < 0) t = 0
-  if (t > 1) t = 1
-  // 近似 turbo colormap 的分段配色（蓝->青->绿->黄->红）
-  const r = Math.round(
-    34.61 +
-      t * (1172.33 - t * (10793.56 - t * (33300.12 - t * (38394.49 - t * 14825.05))))
-  )
-  const g = Math.round(
-    23.31 +
-      t * (557.33 + t * (1225.33 - t * (3574.96 - t * (1073.77 + t * 707.56))))
-  )
-  const b = Math.round(
-    27.2 +
-      t * (3211.1 - t * (15327.97 - t * (27814.0 - t * (22569.18 - t * 6838.66))))
-  )
-  return [clamp8(r), clamp8(g), clamp8(b)]
-}
-
-function clamp8(v) {
-  if (v < 0) return 0
-  if (v > 255) return 255
-  return v
+  return jet(0, 1, t)
 }
 
 const SIZE = 64

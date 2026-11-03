@@ -5,6 +5,8 @@ import WalkwayFlatHeatmap from '../components/WalkwayFlatHeatmap.jsx'
 import { getReplayFrames, getReplayMeta } from '../lib/replayStore.js'
 import { framesToTemplateCsvs, frameToMatrices, frameTimeStr } from '../lib/dataImport.js'
 import LogConsole from '../components/LogConsole.jsx'
+import BrandHeader from '../components/BrandHeader.jsx'
+import DeviceDialog from '../components/DeviceDialog.jsx'
 import { pushLog } from '../lib/logBus.js'
 
 const SPEEDS = [0.5, 1, 2]
@@ -27,6 +29,8 @@ export default function Replay() {
   const [viewMode, setViewMode] = useState('walkway')
   // 显示左右翻转（点云 + 热力图同时反转走行方向）
   const [flip, setFlip] = useState(false)
+  // 「受试者信息」弹窗
+  const [subjectDialogOpen, setSubjectDialogOpen] = useState(false)
 
   const idxRef = useRef(0)
   idxRef.current = idx
@@ -122,10 +126,7 @@ export default function Replay() {
       {/* 顶部条 */}
       <div className="cap-topbar">
         <div className="cap-top-left">
-          <button className="cap-back" onClick={() => navigate('/capture')}>
-            ← 返回
-          </button>
-          <span className="cap-title">步道数据回放</span>
+          <BrandHeader title="步道数据回放" subtitle="Walkway Replay" />
         </div>
 
         <div className="cap-top-center">
@@ -137,31 +138,60 @@ export default function Replay() {
         </div>
 
         <div className="cap-top-right">
-          <label className="cap-field">
-            姓名
-            <input
-              className="wk-input"
-              type="text"
-              placeholder="可空"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <label className="cap-field">
-            体重
-            <input
-              className="wk-input small"
-              type="number"
-              placeholder="kg"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-            />
-          </label>
+          <button className="wk-btn wk-btn-sm" onClick={() => setSubjectDialogOpen(true)}>
+            受试者信息
+          </button>
+          {/* 回放是子页面，保留唯一出口 */}
+          <button className="wk-btn wk-btn-sm" onClick={() => navigate('/capture')}>
+            返回采集
+          </button>
         </div>
       </div>
 
-      {/* 主区：一整条步道点云回放，或平面热力图 */}
+      <DeviceDialog
+        open={subjectDialogOpen}
+        onClose={() => setSubjectDialogOpen(false)}
+        showDevice={false}
+        name={name}
+        onNameChange={setName}
+        weight={weight}
+        onWeightChange={setWeight}
+      />
+
+      {/* 主区：舞台标题行 + 一整条步道点云回放，或平面热力图 */}
       <div className="cap-main">
+        <div className="cap-stage-head">
+          <span className="cap-stage-title">
+            {viewMode === 'walkway' ? '步道点云' : '压力热力图'}
+            <span className="muted">
+              {viewMode === 'walkway' ? '3D 空间视图' : '四块拼接 · 64 × 256'}
+            </span>
+          </span>
+          <div className="cap-stage-tools">
+            <div className="wk-seg">
+              <button
+                className={`wk-seg-btn${viewMode === 'walkway' ? ' active' : ''}`}
+                onClick={() => setViewMode('walkway')}
+              >
+                3D 点云
+              </button>
+              <button
+                className={`wk-seg-btn${viewMode === 'heatmap' ? ' active' : ''}`}
+                onClick={() => setViewMode('heatmap')}
+              >
+                平面热力图
+              </button>
+            </div>
+            <button
+              className={`wk-btn wk-btn-sm${flip ? ' wk-btn-primary' : ''}`}
+              onClick={() => setFlip((f) => !f)}
+              title="左右翻转点云 / 热力图显示（反转走行方向）"
+            >
+              {flip ? '已翻转' : '左右翻转'}
+            </button>
+          </div>
+        </div>
+
         {viewMode === 'walkway' ? (
           <div className="gait-stage">
             <GaitWalkway sensorData={sensorData} flip={flip} />
@@ -208,20 +238,8 @@ export default function Replay() {
           ))}
         </div>
 
+        {/* 视图切换与翻转已移至主区标题行（cap-stage-head） */}
         <div className="cap-actions">
-          <button
-            className="wk-btn"
-            onClick={() => setViewMode((m) => (m === 'walkway' ? 'heatmap' : 'walkway'))}
-          >
-            {viewMode === 'walkway' ? '切换热力图' : '切换点云步道'}
-          </button>
-          <button
-            className={`wk-btn${flip ? ' wk-btn-primary' : ''}`}
-            onClick={() => setFlip((f) => !f)}
-            title="左右翻转点云 / 热力图显示（反转走行方向）"
-          >
-            {flip ? '已翻转' : '左右翻转'}
-          </button>
           <button
             className="wk-btn wk-btn-primary"
             onClick={handleGenerateReport}

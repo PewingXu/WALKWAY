@@ -8,9 +8,17 @@ import { setReplayFrames } from '../lib/replayStore.js'
 import WalkwayFlatHeatmap from '../components/WalkwayFlatHeatmap.jsx'
 import GaitWalkway from '../components/GaitWalkway.jsx'
 import LogConsole from '../components/LogConsole.jsx'
+import BrandHeader from '../components/BrandHeader.jsx'
+import DeviceDialog from '../components/DeviceDialog.jsx'
+import RenderParams from '../components/RenderParams.jsx'
+import AdcTrendChart from '../components/AdcTrendChart.jsx'
 import { pushLog } from '../lib/logBus.js'
 
 const PADS = [1, 2, 3, 4]
+// ADC 走势曲线的时间窗（采样点数；设备约 40~77Hz，120 点 ≈ 2~3 秒）
+const ADC_WINDOW = 120
+// 四条曲线的配色，与脚垫编号一一对应
+const ADC_COLORS = ['#1A4FA0', '#2B7FD4', '#16A394', '#7CC44A']
 
 export default function Capture() {
   const navigate = useNavigate()
@@ -39,6 +47,16 @@ export default function Capture() {
   const [viewMode, setViewMode] = useState('walkway')
   // 显示左右翻转（点云 + 热力图同时反转走行方向）
   const [flip, setFlip] = useState(false)
+  // 「连接与设置」弹窗
+  const [deviceDialogOpen, setDeviceDialogOpen] = useState(false)
+
+  // ─── 渲染参数（色阶上限 / 过滤阈值）───
+  const [autoColor, setAutoColor] = useState(true)
+  const [colorMax, setColorMax] = useState(300)
+  const [threshold, setThreshold] = useState(1)
+
+  // ─── 各块 ADC 走势（每块一条曲线，窗口内滚动）───
+  const [adcSeries, setAdcSeries] = useState({ 1: [], 2: [], 3: [], 4: [] })
 
   // refs：累积的 CSV 行（每块），采集开关，计时器
   const framesRef = useRef({ 1: [], 2: [], 3: [], 4: [] })
@@ -90,6 +108,17 @@ export default function Capture() {
           matrix.push(row)
         }
         setMatrices((prev) => ({ ...prev, [n]: matrix }))
+
+        // ADC 走势：取该帧峰值（最能反映踩踏强度），滚动保留最近 ADC_WINDOW 个采样
+        let peak = 0
+        for (let i = 0; i < arr.length; i++) if (arr[i] > peak) peak = arr[i]
+        setAdcSeries((prev) => {
+          const next = prev[n].length >= ADC_WINDOW
+            ? prev[n].slice(prev[n].length - ADC_WINDOW + 1)
+            : prev[n].slice()
+          next.push(peak)
+          return { ...prev, [n]: next }
+        })
 
         // 累积（采集中）：push 拼好的 CSV 行字符串（原始一维 arr）
         if (isRecordingRef.current) {
@@ -324,67 +353,89 @@ export default function Capture() {
 
   const totalFrames = frameCount[1] + frameCount[2] + frameCount[3] + frameCount[4]
 
+  // 当前帧峰值：取四块最新采样的最大值。
+  // 不用热力图回调，否则切到 3D 点云时这个读数会停在 0。
+  const frameMax = PADS.reduce((acc, n) => {
+    const s = adcSeries[n]
+    const v = s.length ? s[s.length - 1] : 0
+    return v > acc ? v : acc
+  }, 0)
+
   return (
     <div className="capture-wrap">
       {/* 顶部条 */}
       <div className="cap-topbar">
         <div className="cap-top-left">
-          <button className="cap-back" onClick={() => navigate('/')}>
-            ← 返回
-          </button>
-          <span className="cap-title">足底压力采集</span>
+          <BrandHeader title="足底压力采集" subtitle="Foot Pressure Walkway" />
         </div>
 
-        <div className="cap-top-center">
+        <div className="cap-top-right">
+          {/* 常驻的连接态指示：一眼能看出设备通没通，详情进弹窗 */}
           <div className="cap-conn">
             <span className={`conn-dot ${connState}`} />
             <span>{connText}</span>
           </div>
-          <div className="cap-tiles">
-            {PADS.map((n) => (
-              <div className="tile-ind" key={n}>
-                <span className={`tile-dot ${padOnline[n] ? 'on' : ''}`} />
-                <span>{n}</span>
-              </div>
-            ))}
-          </div>
           <button
             className={`wk-btn cap-connect-btn${deviceConnected ? ' is-connected' : ''}`}
-            onClick={handleConnect}
-            title="立即重新连接设备（无需等待自动重连）"
+            onClick={() => setDeviceDialogOpen(true)}
+            title="设备连接状态与受试者信息"
           >
-            {deviceConnected ? `✓ 已连接 (${onlineCount}/4) · 重连` : '一键连接'}
+            连接与设置
           </button>
-        </div>
-
-        <div className="cap-top-right">
-          <label className="cap-field">
-            姓名
-            <input
-              className="wk-input"
-              type="text"
-              placeholder="可空"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <label className="cap-field">
-            体重
-            <input
-              className="wk-input small"
-              type="number"
-              placeholder="kg"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-            />
-          </label>
         </div>
       </div>
 
-      {/* 主区：一整条步道点云（默认）或 2x2 热力图 */}
+      <DeviceDialog
+        open={deviceDialogOpen}
+        onClose={() => setDeviceDialogOpen(false)}
+        onReconnect={handleConnect}
+        connState={connState}
+        connText={connText}
+        onlineCount={onlineCount}
+        padOnline={padOnline}
+        name={name}
+        onNameChange={setName}
+        weight={weight}
+        onWeightChange={setWeight}
+      />
+
+      {/* 主区：舞台标题行 + 一整条步道点云（默认）或平面热力图 */}
       <div className="cap-main">
-        {viewMode === 'walkway' ? (
-          <div className="gait-stage">
+        <div className="cap-stage-head">
+          <span className="cap-stage-title">
+            {viewMode === 'walkway' ? '步道点云' : '压力热力图'}
+            <span className="muted">
+              {viewMode === 'walkway' ? '3D 空间视图' : '四块拼接 · 64 × 256'}
+            </span>
+          </span>
+          <div className="cap-stage-tools">
+            <div className="wk-seg">
+              <button
+                className={`wk-seg-btn${viewMode === 'walkway' ? ' active' : ''}`}
+                onClick={() => setViewMode('walkway')}
+              >
+                3D 点云
+              </button>
+              <button
+                className={`wk-seg-btn${viewMode === 'heatmap' ? ' active' : ''}`}
+                onClick={() => setViewMode('heatmap')}
+              >
+                平面热力图
+              </button>
+            </div>
+            <button
+              className={`wk-btn wk-btn-sm${flip ? ' wk-btn-primary' : ''}`}
+              onClick={() => setFlip((f) => !f)}
+              title="左右翻转点云 / 热力图显示（反转走行方向）"
+            >
+              {flip ? '已翻转' : '左右翻转'}
+            </button>
+          </div>
+        </div>
+
+        {/* 舞台：画面铺满，渲染参数与四块 ADC 走势作为浮层叠在视图内 */}
+        <div className={`gait-stage${viewMode === 'heatmap' ? ' heat-flat-stage' : ''}`}>
+          {viewMode === 'walkway' ? (
             <GaitWalkway
               sensorData={{
                 sensor1: matrices[1],
@@ -393,10 +444,12 @@ export default function Capture() {
                 sensor4: matrices[4],
               }}
               flip={flip}
+              particleParams={{
+                colorRange: autoColor ? 700 : colorMax,
+                filterThreshold: threshold,
+              }}
             />
-          </div>
-        ) : (
-          <div className="gait-stage heat-flat-stage">
+          ) : (
             <WalkwayFlatHeatmap
               sensorData={{
                 sensor1: matrices[1],
@@ -405,9 +458,44 @@ export default function Capture() {
                 sensor4: matrices[4],
               }}
               flip={flip}
+              colorMax={autoColor ? 0 : colorMax}
+              threshold={threshold}
+            />
+          )}
+
+          {/* 浮层 1：渲染参数（视图右上角） */}
+          <div className="stage-overlay stage-overlay-tr">
+            <RenderParams
+              auto={autoColor}
+              onAutoChange={setAutoColor}
+              colorMax={colorMax}
+              onColorMaxChange={setColorMax}
+              threshold={threshold}
+              onThresholdChange={setThreshold}
+              frameMax={frameMax}
             />
           </div>
-        )}
+
+          {/* 浮层 2：四块 ADC 波动（视图底部横向铺开，与步道四块左右对应） */}
+          <div className="adc-overlay">
+            <div className="adc-overlay-head">
+              <span className="adc-group-title">ADC 波动</span>
+              <span className="adc-group-sub">各垫峰值 · 最近 {ADC_WINDOW} 帧</span>
+            </div>
+            <div className="adc-overlay-row">
+              {PADS.map((n) => (
+                <AdcTrendChart
+                  key={n}
+                  label={`${n} 号垫`}
+                  points={adcSeries[n]}
+                  online={!!padOnline[n]}
+                  color={ADC_COLORS[n - 1]}
+                  peak={autoColor ? 0 : colorMax}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 底部操作条 */}
@@ -431,20 +519,8 @@ export default function Capture() {
           </span>
         </div>
 
+        {/* 视图切换与翻转已移至主区标题行（cap-stage-head） */}
         <div className="cap-actions">
-          <button
-            className="wk-btn"
-            onClick={() => setViewMode((m) => (m === 'walkway' ? 'heatmap' : 'walkway'))}
-          >
-            {viewMode === 'walkway' ? '切换热力图' : '切换点云步道'}
-          </button>
-          <button
-            className={`wk-btn${flip ? ' wk-btn-primary' : ''}`}
-            onClick={() => setFlip((f) => !f)}
-            title="左右翻转点云 / 热力图显示（反转走行方向）"
-          >
-            {flip ? '已翻转' : '左右翻转'}
-          </button>
           <button className="wk-btn" onClick={handleImportClick}>
             导入数据(Excel/CSV)
           </button>

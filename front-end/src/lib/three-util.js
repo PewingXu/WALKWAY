@@ -151,30 +151,43 @@ function generateGaussianKernel(sigma) {
 }
 
 /**
- * jet 颜色映射 - 将值映射到彩色
+ * 压力色阶：淡蓝 → 蓝 → 青 → 绿 → 黄绿 → 黄
+ * 全站统一色阶（3D 点云 / 平面热力图 / 单块热力图都走这里）。
+ * 相比传统 jet，去掉了深蓝与红色端 —— 在亮色界面上更通透，长时间观看不刺眼。
+ */
+const RAMP_STOPS = [
+  [37, 85, 158],   // #25559E 深蓝（低压：在白底上要压得住，否则糊进背景）
+  [41, 128, 196],  // #2980C4 蓝
+  [38, 169, 190],  // #26A9BE 青
+  [52, 179, 132],  // #34B384 青绿
+  [124, 196, 74],  // #7CC44A 绿
+  [214, 214, 55],  // #D6D637 黄绿
+  [255, 205, 40],  // #FFCD28 黄（高压峰值）
+];
+
+/**
+ * 色阶取色 - 将值映射到 RAMP_STOPS 上的线性插值颜色
+ * 函数名沿用 jet 以免改动各渲染组件的调用点。
  */
 export function jet(min, max, value) {
-  if (value <= min) return [0, 0, 128];
-  if (value >= max) return [128, 0, 0];
+  if (!(max > min)) return RAMP_STOPS[0].slice();
 
-  const ratio = (value - min) / (max - min);
+  let ratio = (value - min) / (max - min);
+  if (ratio <= 0) return RAMP_STOPS[0].slice();
+  if (ratio >= 1) return RAMP_STOPS[RAMP_STOPS.length - 1].slice();
 
-  let r, g, b;
-  if (ratio < 0.125) {
-    r = 0; g = 0; b = 128 + ratio * 4 * 127;
-  } else if (ratio < 0.375) {
-    r = 0; g = (ratio - 0.125) * 4 * 255; b = 255;
-  } else if (ratio < 0.625) {
-    r = (ratio - 0.375) * 4 * 255; g = 255; b = 255 - (ratio - 0.375) * 4 * 255;
-  } else if (ratio < 0.875) {
-    r = 255; g = 255 - (ratio - 0.625) * 4 * 255; b = 0;
-  } else {
-    r = 255 - (ratio - 0.875) * 4 * 127; g = 0; b = 0;
-  }
+  // 定位所在区段并在两个端点间线性插值
+  const seg = ratio * (RAMP_STOPS.length - 1);
+  const i = Math.floor(seg);
+  const t = seg - i;
+  const a = RAMP_STOPS[i];
+  const b = RAMP_STOPS[i + 1];
 
-  return [Math.round(Math.max(0, Math.min(255, r))),
-          Math.round(Math.max(0, Math.min(255, g))),
-          Math.round(Math.max(0, Math.min(255, b)))];
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
 }
 
 /**
