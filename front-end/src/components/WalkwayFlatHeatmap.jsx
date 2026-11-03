@@ -1,5 +1,7 @@
 import { useRef, useEffect } from 'react'
-import { createHeatmapBuffers, HEATMAP_WIDTH, HEATMAP_HEIGHT, paintSmoothHeatmap } from '../lib/smoothHeatmap.js'
+import { createHeatmapBuffers, HEATMAP_WIDTH, HEATMAP_HEIGHT, smoothPressureField, paintPressureField } from '../lib/smoothHeatmap.js'
+import { DEFAULT_RENDER_SETTINGS, transitionFactor } from '../lib/renderSettings.js'
+import { findMax } from '../lib/three-util.js'
 import { getWalkwayViewport, observeWalkwayViewport } from '../lib/walkwayViewport.js'
 
 /**
@@ -15,8 +17,8 @@ import { getWalkwayViewport, observeWalkwayViewport } from '../lib/walkwayViewpo
  * props:
  *   - sensorData: { sensor1: 64×64矩阵, sensor2, sensor3, sensor4 }（可能有 null）
  *   - flip: 是否额外旋转 180°（反转走行方向；旋转而非镜像，左右脚保持不变）
- *   - colorMax: 色阶上限；<=0 表示按当前帧最大值自动拉伸
- *   - threshold: 噪声过滤阈值（低于此值的单元置 0）
+ *   - renderSettings: 色阶、边缘淡出、空间 / 时间平滑与过滤阈值
+ *   - resetTemporalKey: 回放跳帧时立即更新，避免残留上一帧脚印
  */
 
 /* ─── 常量 ─── */
@@ -90,14 +92,15 @@ function zeroLine64x256(arr, rows, cols) {
 export default function WalkwayFlatHeatmap({
   sensorData = {},
   flip = false,
-  colorMax = 0,
-  threshold = 1,
+  renderSettings = DEFAULT_RENDER_SETTINGS,
+  resetTemporalKey = 0,
   resetViewKey = 0,
 }) {
   const viewportRef = useRef(null)
   const canvasRef = useRef(null)
   const buffersRef = useRef(null)
   const resetViewRef = useRef(null)
+  const drawStateRef = useRef(null)
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -194,19 +197,50 @@ export default function WalkwayFlatHeatmap({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-
-    ctx.clearRect(0, 0, HEATMAP_WIDTH, HEATMAP_HEIGHT)
-    if (!buffersRef.current) {
-      buffersRef.current = { ...createHeatmapBuffers(), image: ctx.createImageData(HEATMAP_WIDTH, HEATMAP_HEIGHT) }
+    const buffers = { ...createHeatmapBuffers(), image: ctx.createImageData(HEATMAP_WIDTH, HEATMAP_HEIGHT) }
+    buffersRef.current = buffers
+    const state = { dirty: false, reset: true, flip, resetTemporalKey, settings: renderSettings, ceiling: renderSettings.colorMax }
+    drawStateRef.current = state
+    let animationId
+    let lastTime = performance.now()
+    const draw = (now) => {
+      animationId = requestAnimationFrame(draw)
+      const elapsed = now - lastTime
+      lastTime = now
+      if (!state.dirty) return
+      const factor = state.reset ? 1 : transitionFactor(state.settings.transitionSmooth, elapsed)
+      let settling = false
+      for (let i = 0; i < buffers.display.length; i++) {
+        const difference = buffers.smooth[i] - buffers.display[i]
+        if (factor === 1 || Math.abs(difference) < 0.02) buffers.display[i] = buffers.smooth[i]
+        else {
+          buffers.display[i] += difference * factor
+          settling = true
+        }
+      }
+      paintPressureField(buffers.display, buffers.image.data, state.ceiling, state.settings)
+      ctx.putImageData(buffers.image, 0, 0)
+      state.reset = false
+      state.dirty = settling
     }
+    animationId = requestAnimationFrame(draw)
+    return () => {
+      cancelAnimationFrame(animationId)
+      buffersRef.current = null
+      drawStateRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const buffers = buffersRef.current
+    const state = drawStateRef.current
+    if (!buffers || !state) return
 
     // 1) 拼接 4 块为 64×256（每块顺时针旋转 90°：原 (row,col) → 新 (col, 63-row)）
     //    宽度轴镜像修正左右脚，再整体旋转 180°（右=起点=foot1，左=终点=foot4；旋转保持左右脚不变）
     const ndata = new Float32Array(NX * NY)
-    let hasData = false
     for (let s = 0; s < 4; s++) {
       const matrix = sensorData[SENSOR_KEYS[s]]
       if (!matrix || !Array.isArray(matrix) || matrix.length === 0) continue
@@ -226,26 +260,28 @@ export default function WalkwayFlatHeatmap({
             C = NY - 1 - C
           }
           ndata[R * NY + C] = v
-          if (v > 0) hasData = true
         }
       }
     }
-
-    if (!hasData) return // 无数据：透明，露出画布灰色底
 
     // 2) 坏线补值
     zeroLine64x256(ndata, NX, NY)
 
     // 3) 阈值过滤去噪
     for (let i = 0; i < ndata.length; i++) {
-      if (ndata[i] < threshold) ndata[i] = 0
+      if (ndata[i] < renderSettings.threshold) ndata[i] = 0
     }
 
     // 只平滑显示副本，采集值、传感器统计和导出的数据均保持原始值。
-    const buffers = buffersRef.current
-    paintSmoothHeatmap(ndata, buffers.image.data, buffers, colorMax)
-    ctx.putImageData(buffers.image, 0, 0)
-  }, [sensorData, flip, colorMax, threshold])
+    smoothPressureField(ndata, buffers, renderSettings.spatialSmooth)
+    const peak = findMax(ndata)
+    state.ceiling = renderSettings.autoColor ? (peak > 0 ? peak : state.ceiling) : renderSettings.colorMax
+    state.settings = renderSettings
+    state.reset ||= state.flip !== flip || state.resetTemporalKey !== resetTemporalKey
+    state.flip = flip
+    state.resetTemporalKey = resetTemporalKey
+    state.dirty = true
+  }, [sensorData, flip, renderSettings, resetTemporalKey])
 
   return (
     <div ref={viewportRef} className="walkway-flat" tabIndex={0} role="region" aria-label="平面压力热力图：左键拖动，滚轮或中键缩放，双击或 Home 键复位" title="左键拖动 · 滚轮 / 中键缩放 · 双击复位">

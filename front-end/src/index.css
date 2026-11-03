@@ -454,7 +454,7 @@ button {
   margin-left: auto;
 }
 
-/* ─── 视图内浮层（渲染参数 / ADC 波动叠在舞台上）─── */
+/* ─── 视图内渲染参数浮层；默认收起，内容使用液态玻璃样式 ─── */
 .stage-overlay {
   position: absolute;
   z-index: 3;
@@ -462,159 +462,9 @@ button {
 .stage-overlay-tr {
   top: 12px;
   right: 12px;
-  width: 252px;
+  max-width: calc(100% - 24px);
 }
 
-/* ─── 渲染参数面板 ─── */
-.rp-panel {
-  /* 浮层卡片：半透明 + 背景模糊，不完全遮挡其下的画面 */
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  padding: 10px 12px;
-}
-.rp-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.rp-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.rp-ramp {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.rp-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  margin-bottom: 10px;
-}
-.rp-check-hint {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-.rp-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.rp-row.is-disabled {
-  opacity: 0.45;
-}
-.rp-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  width: 56px;
-  flex: none;
-}
-.rp-range {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.rp-row.is-disabled .rp-range {
-  cursor: not-allowed;
-}
-.rp-val {
-  width: 38px;
-  flex: none;
-  text-align: right;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ─── ADC 走势：舞台底部浮层，四块横向铺开与步道方位对应 ─── */
-.adc-overlay {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 3;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  padding: 8px 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.adc-overlay-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.adc-overlay-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
-.adc-group-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.adc-group-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.adc-group-sub {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.adc-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: rgba(247, 249, 251, 0.9);
-  padding: 6px 8px 2px;
-  min-width: 0;
-}
-.adc-card.is-off {
-  opacity: 0.6;
-}
-.adc-card-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.adc-card-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-.adc-card-val {
-  margin-left: auto;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-.adc-card-canvas {
-  display: block;
-  width: 100%;
-  height: 40px;
-}
 .heat-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -11,15 +11,11 @@ import LogConsole from '../components/LogConsole.jsx'
 import BrandHeader from '../components/BrandHeader.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
 import RenderParams from '../components/RenderParams.jsx'
-import AdcTrendChart from '../components/AdcTrendChart.jsx'
+import { DEFAULT_RENDER_SETTINGS } from '../lib/renderSettings.js'
 import { LivePressureSidebar } from '../components/PressureSidebar.jsx'
 import { pushLog } from '../lib/logBus.js'
 
 const PADS = [1, 2, 3, 4]
-// ADC 走势曲线的时间窗（采样点数；设备约 40~77Hz，120 点 ≈ 2~3 秒）
-const ADC_WINDOW = 120
-// 四条曲线的配色，与脚垫编号一一对应
-const ADC_COLORS = ['#1A4FA0', '#2B7FD4', '#16A394', '#7CC44A']
 
 export default function Capture() {
   const navigate = useNavigate()
@@ -52,13 +48,8 @@ export default function Capture() {
   // 「连接与设置」弹窗
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false)
 
-  // ─── 渲染参数（色阶上限 / 过滤阈值）───
-  const [autoColor, setAutoColor] = useState(true)
-  const [colorMax, setColorMax] = useState(300)
-  const [threshold, setThreshold] = useState(1)
-
-  // ─── 各块 ADC 走势（每块一条曲线，窗口内滚动）───
-  const [adcSeries, setAdcSeries] = useState({ 1: [], 2: [], 3: [], 4: [] })
+  const [renderSettings, setRenderSettings] = useState(() => ({ ...DEFAULT_RENDER_SETTINGS }))
+  const [padPeaks, setPadPeaks] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
 
   // refs：累积的 CSV 行（每块），采集开关，计时器
   const framesRef = useRef({ 1: [], 2: [], 3: [], 4: [] })
@@ -85,12 +76,14 @@ export default function Capture() {
     const offDisconnect = backendBridge.on('disconnect', () => {
       setWsConnected(false)
       setPadOnline({ 1: false, 2: false, 3: false, 4: false })
+      setPadPeaks({ 1: 0, 2: 0, 3: 0, 4: 0 })
     })
     const offStatus = backendBridge.on('deviceStatus', ({ type, status }) => {
       const m = /^foot([1-4])$/.exec(type)
       if (m) {
         const n = Number(m[1])
         setPadOnline((prev) => ({ ...prev, [n]: status === 'online' }))
+        if (status !== 'online') setPadPeaks((prev) => ({ ...prev, [n]: 0 }))
       }
     })
 
@@ -111,16 +104,10 @@ export default function Capture() {
         }
         setMatrices((prev) => ({ ...prev, [n]: matrix }))
 
-        // ADC 走势：取该帧峰值（最能反映踩踏强度），滚动保留最近 ADC_WINDOW 个采样
+        // 只保留当前峰值供渲染参数适配，不再维护底部 ADC 曲线历史。
         let peak = 0
         for (let i = 0; i < arr.length; i++) if (arr[i] > peak) peak = arr[i]
-        setAdcSeries((prev) => {
-          const next = prev[n].length >= ADC_WINDOW
-            ? prev[n].slice(prev[n].length - ADC_WINDOW + 1)
-            : prev[n].slice()
-          next.push(peak)
-          return { ...prev, [n]: next }
-        })
+        setPadPeaks((prev) => ({ ...prev, [n]: peak }))
 
         // 累积（采集中）：push 拼好的 CSV 行字符串（原始一维 arr）
         if (isRecordingRef.current) {
@@ -355,13 +342,7 @@ export default function Capture() {
 
   const totalFrames = frameCount[1] + frameCount[2] + frameCount[3] + frameCount[4]
 
-  // 当前帧峰值：取四块最新采样的最大值。
-  // 不用热力图回调，否则切到 3D 点云时这个读数会停在 0。
-  const frameMax = PADS.reduce((acc, n) => {
-    const s = adcSeries[n]
-    const v = s.length ? s[s.length - 1] : 0
-    return v > acc ? v : acc
-  }, 0)
+  const frameMax = Math.max(...Object.values(padPeaks))
 
   return (
     <div className="capture-wrap">
@@ -438,7 +419,7 @@ export default function Capture() {
           </div>
         </div>
 
-        {/* 舞台：画面铺满，渲染参数与四块 ADC 走势作为浮层叠在视图内 */}
+        {/* 舞台：画面铺满，压力读数与可折叠渲染参数叠在视图内 */}
         <div className={`gait-stage${viewMode === 'heatmap' ? ' heat-flat-stage' : ''}`}>
           {viewMode === 'walkway' ? (
             <GaitWalkway
@@ -450,10 +431,7 @@ export default function Capture() {
               }}
               flip={flip}
               resetViewKey={resetViewKey}
-              particleParams={{
-                colorRange: autoColor ? 700 : colorMax,
-                filterThreshold: threshold,
-              }}
+              renderSettings={renderSettings}
             />
           ) : (
             <WalkwayFlatHeatmap
@@ -465,8 +443,7 @@ export default function Capture() {
               }}
               flip={flip}
               resetViewKey={resetViewKey}
-              colorMax={autoColor ? 0 : colorMax}
-              threshold={threshold}
+              renderSettings={renderSettings}
             />
           )}
 
@@ -474,35 +451,7 @@ export default function Capture() {
 
           {/* 浮层 1：渲染参数（视图右上角） */}
           <div className="stage-overlay stage-overlay-tr">
-            <RenderParams
-              auto={autoColor}
-              onAutoChange={setAutoColor}
-              colorMax={colorMax}
-              onColorMaxChange={setColorMax}
-              threshold={threshold}
-              onThresholdChange={setThreshold}
-              frameMax={frameMax}
-            />
-          </div>
-
-          {/* 浮层 2：四块 ADC 波动（视图底部横向铺开，与步道四块左右对应） */}
-          <div className="adc-overlay">
-            <div className="adc-overlay-head">
-              <span className="adc-group-title">ADC 波动</span>
-              <span className="adc-group-sub">各垫峰值 · 最近 {ADC_WINDOW} 帧</span>
-            </div>
-            <div className="adc-overlay-row">
-              {PADS.map((n) => (
-                <AdcTrendChart
-                  key={n}
-                  label={`${n} 号垫`}
-                  points={adcSeries[n]}
-                  online={!!padOnline[n]}
-                  color={ADC_COLORS[n - 1]}
-                  peak={autoColor ? 0 : colorMax}
-                />
-              ))}
-            </div>
+            <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} />
           </div>
         </div>
       </div>

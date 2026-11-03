@@ -8,6 +8,8 @@ import LogConsole from '../components/LogConsole.jsx'
 import BrandHeader from '../components/BrandHeader.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
 import { ReplayPressureSidebar } from '../components/PressureSidebar.jsx'
+import RenderParams from '../components/RenderParams.jsx'
+import { DEFAULT_RENDER_SETTINGS, sensorFramePeak } from '../lib/renderSettings.js'
 import { pushLog } from '../lib/logBus.js'
 
 const SPEEDS = [0.5, 1, 2]
@@ -31,6 +33,8 @@ export default function Replay() {
   // 显示左右翻转（点云 + 热力图同时反转走行方向）
   const [flip, setFlip] = useState(false)
   const [resetViewKey, setResetViewKey] = useState(0)
+  const [renderSettings, setRenderSettings] = useState(() => ({ ...DEFAULT_RENDER_SETTINGS }))
+  const [resetTemporalKey, setResetTemporalKey] = useState(0)
   // 「受试者信息」弹窗
   const [subjectDialogOpen, setSubjectDialogOpen] = useState(false)
 
@@ -60,6 +64,8 @@ export default function Replay() {
     return frameToMatrices(f)
   }, [frames, idx, total])
 
+  const frameMax = useMemo(() => sensorFramePeak(sensorData), [sensorData])
+
   const currentTime = useMemo(() => {
     if (!frames || total === 0) return ''
     return frameTimeStr(frames[Math.min(idx, total - 1)])
@@ -69,7 +75,10 @@ export default function Replay() {
     if (total === 0) return
     setPlaying((p) => {
       // 若已在末尾，点播放则从头开始
-      if (!p && idxRef.current >= total - 1) setIdx(0)
+      if (!p && idxRef.current >= total - 1) {
+        setIdx(0)
+        setResetTemporalKey((key) => key + 1)
+      }
       return !p
     })
   }
@@ -77,6 +86,7 @@ export default function Replay() {
   const handleSeek = (e) => {
     const v = Number(e.target.value)
     setIdx(v)
+    setResetTemporalKey((key) => key + 1)
   }
 
   const handleGenerateReport = async () => {
@@ -199,11 +209,14 @@ export default function Replay() {
 
         <div className={`gait-stage${viewMode === 'heatmap' ? ' heat-flat-stage' : ''}`}>
           {viewMode === 'walkway' ? (
-            <GaitWalkway sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} />
+            <GaitWalkway sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} renderSettings={renderSettings} resetTemporalKey={resetTemporalKey} />
           ) : (
-            <WalkwayFlatHeatmap sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} />
+            <WalkwayFlatHeatmap sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} renderSettings={renderSettings} resetTemporalKey={resetTemporalKey} />
           )}
           <ReplayPressureSidebar frames={frames} index={idx} />
+          <div className="stage-overlay stage-overlay-tr">
+            <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} />
+          </div>
         </div>
       </div>
 

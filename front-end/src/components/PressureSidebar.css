@@ -8,7 +8,7 @@
   z-index: 2;
   top: 14px;
   left: 14px;
-  bottom: 136px; /* 保留 main 原有底部 ADC 浮层的位置及卡片间距 */
+  bottom: 14px;
   width: clamp(238px, 21vw, 308px);
   max-height: 660px;
   max-width: calc(100% - 28px);
@@ -16,10 +16,6 @@
   pointer-events: none;
   color: var(--pressure-ink);
   font-variant-numeric: tabular-nums;
-}
-
-.pressure-sidebar-replay {
-  bottom: 14px;
 }
 
 .pressure-sidebar-stack {

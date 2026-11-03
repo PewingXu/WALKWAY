@@ -14,9 +14,10 @@
  */
 import * as THREE from 'three'
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js'
-import { addSide, findMax, gaussBlur_1, interp1016, jet } from '../lib/three-util'
+import { addSide, findMax, gaussBlur_1, interp1016 } from '../lib/three-util'
 import React, { useEffect, useRef } from 'react'
 import { getWalkwayViewport, observeWalkwayViewport } from '../lib/walkwayViewport.js'
+import { DEFAULT_RENDER_SETTINGS, pressureColor, pressureOpacity, transitionFactor } from '../lib/renderSettings.js'
 
 /* ─── 常量 ─── */
 const NX = 64 // 合并后行数（传感器宽度）
@@ -47,11 +48,13 @@ export default function GaitWalkway({
   flip = false,
   onSceneReady = null,
   resetViewKey = 0,
+  renderSettings = DEFAULT_RENDER_SETTINGS,
+  resetTemporalKey = 0,
 }) {
   const containerRef = useRef(null)
   const resetViewRef = useRef(null)
-  const propsRef = useRef({ sensorData, particleParams, transformParams, optimizeEnabled, flip })
-  propsRef.current = { sensorData, particleParams, transformParams, optimizeEnabled, flip }
+  const propsRef = useRef(null)
+  propsRef.current = { sensorData, particleParams, transformParams, optimizeEnabled, flip, renderSettings, resetTemporalKey }
 
   useEffect(() => {
     const container = containerRef.current
@@ -66,9 +69,10 @@ export default function GaitWalkway({
     // RGBA：第 4 个分量是逐点透明度，用于让无压力粒子在亮色背景上淡出
     const colors = new Float32Array(TOTAL * 4)
     const scales = new Float32Array(TOTAL)
-    // 压力占色阶比例低于此值的粒子线性淡出（0 → 完全透明）。
-    // 只用于抹掉零压力底噪，取值要小：色阶低端本身是深蓝，不需要再靠透明度压暗。
-    const FADE_IN = 0.012
+    let previousFlip = flip
+    let previousTemporalKey = resetTemporalKey
+    let firstFrame = true
+    let autoCeiling = renderSettings.colorMax
 
     // 初始化位置（逆时针旋转 90 度：原 (ix,iy) → 新 X=(AY-1-iy), 新 Z=ix）
     const padWidth = AX * SEP
@@ -110,9 +114,25 @@ export default function GaitWalkway({
     })
 
     const particles = new THREE.Points(geometry, material)
+    particles.renderOrder = 1
     const BASE_SCALE = 0.0062 * 3
     particles.scale.set(BASE_SCALE, BASE_SCALE, BASE_SCALE)
     particles.rotation.x = Math.PI / 3
+
+    // 悬空底板与点云共用局部坐标，随视图一起移动；透明度独立于压力淡出参数。
+    const platformGeometry = new THREE.PlaneGeometry(padDepth, padWidth)
+    platformGeometry.rotateX(-Math.PI / 2)
+    const platformMaterial = new THREE.MeshBasicMaterial({
+      color: 0x93acc4,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+    const platform = new THREE.Mesh(platformGeometry, platformMaterial)
+    platform.name = 'walkway-platform'
+    platform.position.set(-SEP / 2, -SEP / 4, -SEP / 2)
+    particles.add(platform)
 
     const group = new THREE.Group()
     group.add(particles)
@@ -271,14 +291,13 @@ export default function GaitWalkway({
     }
 
     /* ─── 数据更新 ─── */
-    function renewData() {
-      const { particleParams: pp, transformParams: tp } = propsRef.current
-      // 默认值对齐 express 步道场景（particleConfig 的 GAIT_*_DEFAULTS）
+    function renewData(elapsedMs = 1000 / 60) {
+      const { particleParams: pp, transformParams: tp, renderSettings: settings, flip, resetTemporalKey } = propsRef.current
+      // 空间平滑使用原始传感器格距，3D 插值后同步换算为粒子间距。
       const params = {
-        gaussSigma: pp.gaussSigma ?? 2.5,
-        filterThreshold: pp.filterThreshold ?? 2,
-        initValue: pp.initValue ?? 2.5,
-        colorRange: pp.colorRange ?? 700,
+        gaussSigma: pp.gaussSigma ?? settings.spatialSmooth * INTERP,
+        filterThreshold: pp.filterThreshold ?? settings.threshold,
+        initValue: pp.initValue ?? settings.transitionSmooth,
         heightScale: pp.heightScale ?? 2.6,
       }
 
@@ -303,6 +322,9 @@ export default function GaitWalkway({
       for (let i = 0; i < ndata.length; i++) {
         if (ndata[i] < params.filterThreshold) ndata[i] = 0
       }
+      const peak = findMax(ndata)
+      if (peak > 0) autoCeiling = peak
+      const ceiling = pp.colorRange != null ? pp.colorRange / 10 : settings.autoColor ? autoCeiling : settings.colorMax
 
       // 非方阵插值：64×256 → 128×512
       interp1016(ndata, bigArr, NX, NY, INTERP)
@@ -311,7 +333,15 @@ export default function GaitWalkway({
       const bigArrs = addSide(bigArr, NY * INTERP, NX * INTERP, PAD, PAD)
 
       // 高斯模糊
-      gaussBlur_1(bigArrs, bigArrg, AY, AX, params.gaussSigma)
+      if (params.gaussSigma > 0) gaussBlur_1(bigArrs, bigArrg, AY, AX, params.gaussSigma)
+      else bigArrg.set(bigArrs)
+
+      // 翻转和回放跳帧立即切换，避免把两个不同位置的脚印混在一起。
+      const reset = firstFrame || previousFlip !== flip || previousTemporalKey !== resetTemporalKey
+      const factor = reset ? 1 : transitionFactor(params.initValue, elapsedMs)
+      firstFrame = false
+      previousFlip = flip
+      previousTemporalKey = resetTemporalKey
 
       // 更新粒子位置和颜色
       let k = 0,
@@ -320,20 +350,20 @@ export default function GaitWalkway({
       for (let ix = 0; ix < AX; ix++) {
         for (let iy = 0; iy < AY; iy++) {
           const val = bigArrg[l] * 10
-          smoothBig[l] += (val - smoothBig[l] + 0.5) / params.initValue
+          const difference = val - smoothBig[l]
+          smoothBig[l] = factor === 1 || Math.abs(difference) < 0.2 ? val : smoothBig[l] + difference * factor
 
           // 逆时针旋转 90 度：原 (ix,iy) → 新 X=(AY-1-iy), 新 Z=ix
           positions[k] = (AY - 1 - iy) * SEP - padDepth / 2
           positions[k + 1] = smoothBig[l] * params.heightScale
           positions[k + 2] = ix * SEP - padWidth / 2
 
-          const rgb = jet(0, params.colorRange, smoothBig[l])
+          const pressure = smoothBig[l] / 10
+          const rgb = pressureColor(pressure, ceiling, settings.colorCurve)
           colors[c] = rgb[0] / 255
           colors[c + 1] = rgb[1] / 255
           colors[c + 2] = rgb[2] / 255
-          // 低压力粒子淡出：否则 jet 低端的蓝紫会在白色背景上糊成一整片底噪
-          const t = smoothBig[l] / params.colorRange
-          colors[c + 3] = t <= 0 ? 0 : t >= FADE_IN ? 1 : t / FADE_IN
+          colors[c + 3] = pressureOpacity(pressure, settings.edgeFade)
 
           k += 3
           c += 4
@@ -347,9 +377,11 @@ export default function GaitWalkway({
 
     /* ─── 渲染循环 ─── */
     let animId
-    function animate() {
+    let lastFrameTime = performance.now()
+    function animate(timestamp = performance.now()) {
       animId = requestAnimationFrame(animate)
-      renewData()
+      renewData(timestamp - lastFrameTime)
+      lastFrameTime = timestamp
       controls.update()
       renderer.render(scene, camera)
     }
@@ -405,7 +437,7 @@ export default function GaitWalkway({
       const fittedZoom = Math.min(1, area.width / Math.max(size.x, 1), area.height / Math.max(size.y, 1))
       // 默认较上一版放大 20%；以当前完整压力场限制放大幅度，避免高压峰越过面板。
       // 使用目标压力高度，而不是入场动画的当前高度，避免复位时缩放随动画变化。
-      const visibleCorners = cornersForHeight((findMax(bigArrg) * 10 + 0.5) * heightScale)
+      const visibleCorners = cornersForHeight(findMax(bigArrg) * 10 * heightScale)
       const visibleSize = screenBounds(visibleCorners).getSize(new THREE.Vector2())
       camera.zoom = Math.min(fittedZoom * 1.2, area.width / Math.max(visibleSize.x, 1), area.height / Math.max(visibleSize.y, 1)) * 0.94
       camera.updateProjectionMatrix()
@@ -445,6 +477,8 @@ export default function GaitWalkway({
       resetViewRef.current = null
       geometry.dispose()
       material.dispose()
+      platformGeometry.dispose()
+      platformMaterial.dispose()
       if (renderer) renderer.dispose()
     }
   }, [])

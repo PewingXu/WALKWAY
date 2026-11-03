@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createHeatmapBuffers, HEATMAP_COLS, HEATMAP_ROWS, HEATMAP_WIDTH, HEATMAP_HEIGHT, paintSmoothHeatmap } from './smoothHeatmap.js'
+import { createHeatmapBuffers, HEATMAP_COLS, HEATMAP_ROWS, HEATMAP_WIDTH, HEATMAP_HEIGHT, paintSmoothHeatmap, smoothPressureField } from './smoothHeatmap.js'
 
 function render(source, colorMax = 0, pixels = new Uint8ClampedArray(HEATMAP_WIDTH * HEATMAP_HEIGHT * 4)) {
   paintSmoothHeatmap(source, pixels, createHeatmapBuffers(), colorMax)
@@ -50,4 +50,19 @@ test('手动色阶不会按每一帧的峰值重新归一化', () => {
   const lowPixels = render(low, 255)
   const highPixels = render(high, 255)
   assert.notDeepEqual(lowPixels.slice(center, center + 3), highPixels.slice(center, center + 3))
+})
+
+test('空间平滑为零时保留原压力场，增大后压力扩散但总量不变', () => {
+  const source = new Float32Array(HEATMAP_ROWS * HEATMAP_COLS)
+  const center = 32 * HEATMAP_COLS + 128
+  source[center] = 255
+  const buffers = createHeatmapBuffers()
+  smoothPressureField(source, buffers, 0)
+  assert.deepEqual(buffers.smooth, source)
+  smoothPressureField(source, buffers, 1.2)
+  const smallerPeak = buffers.smooth[center]
+  smoothPressureField(source, buffers, 3)
+  assert.ok(buffers.smooth[center] < smallerPeak)
+  assert.ok(Math.abs(buffers.smooth.reduce((a, b) => a + b, 0) - 255) < 0.001)
+  assert.equal(source[center], 255)
 })

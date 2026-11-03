@@ -1,73 +1,59 @@
-/**
- * RenderParams - 渲染参数面板（色阶上限 / 过滤阈值）
- *
- * 色阶上限决定「多大的 ADC 值算满色（黄）」：
- *   - 自动：每帧按画面内最大值拉伸，细节最丰富，但不同帧之间颜色不可比
- *   - 手动：固定上限，颜色含义稳定，适合对比不同受试者或前后两次采集
- *
- * props: {
- *   auto, onAutoChange, colorMax, onColorMaxChange,
- *   threshold, onThresholdChange, frameMax
- * }
- */
-export default function RenderParams({
-  auto,
-  onAutoChange,
-  colorMax,
-  onColorMaxChange,
-  threshold,
-  onThresholdChange,
-  frameMax = 0,
-}) {
+import { useId } from 'react'
+import { DEFAULT_RENDER_SETTINGS, RENDER_SLIDERS } from '../lib/renderSettings.js'
+import './PressureSidebar.css'
+import './RenderParams.css'
+
+export default function RenderParams({ settings, onChange, frameMax = 0 }) {
+  const id = useId()
+  const fittedColorMax = Math.max(1, Math.min(255, Math.ceil(frameMax)))
+  const setValue = (key, value) => onChange((previous) => ({ ...previous, [key]: value }))
+  const renderSlider = ({ key, label, min, max, step, hint }) => (
+    <label className={`rp-row${key === 'colorMax' && settings.autoColor ? ' is-disabled' : ''}`} key={key} title={hint}>
+      <span className="rp-label">{label}</span>
+      <input
+        className="rp-range"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={settings[key]}
+        disabled={key === 'colorMax' && settings.autoColor}
+        onChange={(event) => setValue(key, Number(event.target.value))}
+      />
+      <output className="rp-val">{key === 'colorMax' && settings.autoColor ? Math.round(frameMax) : settings[key]}</output>
+    </label>
+  )
+
   return (
-    <div className="rp-panel">
-      <div className="rp-head">
-        <span className="rp-title">渲染参数</span>
-        <span className="rp-ramp" title="低压 → 高压">
-          蓝 → 青 → 绿 → 黄
-        </span>
+    <details className="rp-panel pressure-glass" onKeyDown={(event) => {
+      if (event.key === 'Escape') {
+        event.currentTarget.open = false
+        event.currentTarget.querySelector('summary').focus()
+      }
+    }}>
+      <summary className="rp-toggle" aria-controls={`${id}-body`}>
+        <span className="rp-title"><span aria-hidden="true">⚙</span> 渲染参数</span>
+        <svg className="rp-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      </summary>
+      <div className="rp-body" id={`${id}-body`}>
+        <div className="rp-auto-row">
+          <label className="rp-check">
+            <input type="checkbox" checked={settings.autoColor} onChange={(event) => setValue('autoColor', event.target.checked)} />
+            自动色阶
+          </label>
+          <span className="rp-ramp" title="低压 → 高压">蓝 → 青 → 绿 → 黄 → 红</span>
+        </div>
+        {RENDER_SLIDERS.slice(0, 3).map(renderSlider)}
+        <div className="rp-actions">
+          <button type="button" disabled={frameMax <= 0} onClick={() => onChange((previous) => ({ ...previous, autoColor: false, colorMax: fittedColorMax }))} title={frameMax > 0 ? `将颜色上限设为 ${fittedColorMax}` : '当前没有压力数据'}>
+            <span aria-hidden="true">↗</span> 适配当前峰值
+          </button>
+          <button type="button" onClick={() => onChange({ ...DEFAULT_RENDER_SETTINGS })} title="恢复全部渲染参数的默认值">
+            <span aria-hidden="true">↺</span> 复位
+          </button>
+        </div>
+        <div className="rp-smoothing">{RENDER_SLIDERS.slice(3).map(renderSlider)}</div>
       </div>
-
-      <label className="rp-check">
-        <input
-          type="checkbox"
-          checked={auto}
-          onChange={(e) => onAutoChange(e.target.checked)}
-        />
-        自动色阶
-        <span className="rp-check-hint">
-          {auto ? `当前帧峰值 ${Math.round(frameMax)}` : '固定上限，跨帧可比'}
-        </span>
-      </label>
-
-      <div className={`rp-row${auto ? ' is-disabled' : ''}`}>
-        <span className="rp-label">颜色上限</span>
-        <input
-          className="rp-range"
-          type="range"
-          min={20}
-          max={1000}
-          step={10}
-          value={colorMax}
-          disabled={auto}
-          onChange={(e) => onColorMaxChange(Number(e.target.value))}
-        />
-        <span className="rp-val">{colorMax}</span>
-      </div>
-
-      <div className="rp-row">
-        <span className="rp-label">过滤阈值</span>
-        <input
-          className="rp-range"
-          type="range"
-          min={0}
-          max={60}
-          step={1}
-          value={threshold}
-          onChange={(e) => onThresholdChange(Number(e.target.value))}
-        />
-        <span className="rp-val">{threshold}</span>
-      </div>
-    </div>
+    </details>
   )
 }
