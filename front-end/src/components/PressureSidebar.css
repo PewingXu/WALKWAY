@@ -1,0 +1,296 @@
+/* 独立玻璃浮层：不参与舞台布局，不拦截底层点云的拖动、缩放和旋转。 */
+.pressure-sidebar {
+  --pressure-ink: #344a61;
+  --pressure-muted: #607388;
+  --pressure-teal: #147b70;
+  --sensor-color: #2176c7;
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 14px;
+  bottom: 136px; /* 保留 main 原有底部 ADC 浮层的位置及卡片间距 */
+  width: clamp(238px, 21vw, 308px);
+  max-height: 660px;
+  max-width: calc(100% - 28px);
+  container: pressure-sidebar / size;
+  pointer-events: none;
+  color: var(--pressure-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pressure-sidebar-replay {
+  bottom: 14px;
+}
+
+.pressure-sidebar-stack {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1.05fr) minmax(0, 1.65fr) minmax(0, 1.15fr);
+  gap: 10px;
+}
+
+.pressure-glass {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  /* 中心几乎透明，亮边与暗边提供玻璃厚度；低模糊保留网格和脚印。 */
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.06) 42%, rgba(183, 206, 222, 0.10) 76%, rgba(255, 255, 255, 0.28));
+  backdrop-filter: blur(1.5px) saturate(1.12);
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.12);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 1px 0 1px rgba(255, 255, 255, 0.60),
+    inset 0 -1px 2px rgba(83, 111, 136, 0.20),
+    0 3px 10px rgba(38, 69, 95, 0.08),
+    0 0 0 1px rgba(121, 151, 176, 0.16);
+}
+
+.pressure-glass::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.75);
+  border-bottom-color: rgba(255, 255, 255, 0.45);
+  border-radius: inherit;
+}
+
+.pressure-glass::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+}
+
+.pressure-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 24px;
+  flex: none;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(115, 143, 165, 0.16);
+}
+
+.pressure-card-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9);
+}
+
+.pressure-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sensor-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sensor-color) 9%, transparent);
+  flex: none;
+}
+
+.pressure-card-meta,
+.pressure-sensor-state {
+  font-size: 10px;
+  color: var(--pressure-muted);
+  white-space: nowrap;
+}
+
+.pressure-curve-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.pressure-plot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 6px -4px 2px;
+}
+
+.pressure-plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.pressure-plot-grid {
+  stroke: rgba(95, 123, 148, 0.16);
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.pressure-plot-tick {
+  fill: var(--pressure-muted);
+  font-size: 9px;
+}
+
+.pressure-plot-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--pressure-muted);
+}
+
+.pressure-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  flex: none;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.pressure-legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sensor-color);
+}
+
+.pressure-legend i {
+  width: 9px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.pressure-sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+  gap: 10px;
+}
+
+.pressure-sensor-card {
+  display: flex;
+  flex-direction: column;
+  padding: 9px 11px;
+  border-radius: 18px;
+}
+
+.pressure-sensor-card .pressure-card-head h2 {
+  font-size: 11px;
+  gap: 5px;
+}
+
+.pressure-readings {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  flex: 1;
+  min-height: 0;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9), 0 0 5px rgba(255, 255, 255, 0.65);
+}
+
+.pressure-readings > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pressure-readings dt {
+  flex: none;
+}
+
+.pressure-readings dd {
+  margin: 0;
+  color: var(--sensor-color);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.pressure-sensor-card .pressure-readings {
+  font-size: 11px;
+}
+
+.pressure-gait-card {
+  --sensor-color: var(--pressure-teal);
+  display: flex;
+  flex-direction: column;
+}
+
+.pressure-gait-card .pressure-readings > div + div {
+  border-top: 1px solid rgba(115, 143, 165, 0.09);
+}
+
+.pressure-gait-card dd {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.pressure-unit {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pressure-gait-note {
+  margin: 3px 0 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--pressure-muted);
+  flex: none;
+}
+
+/* 根据浮层可用高度收紧内部留白；舞台尺寸、相机和热力图定位保持原样。 */
+@container pressure-sidebar (max-height: 480px) {
+  .pressure-sidebar-stack { grid-template-rows: minmax(0, 1fr) 144px 116px; }
+  .pressure-sidebar-stack,
+  .pressure-sensor-grid { gap: 7px; }
+  .pressure-glass { padding: 7px 10px; border-radius: 16px; }
+  .pressure-sensor-card { padding: 4px 9px; border-radius: 14px; }
+  .pressure-card-head { min-height: 20px; padding-bottom: 3px; }
+  .pressure-readings { margin-top: 2px; font-size: 11px; }
+  .pressure-sensor-card .pressure-card-head { min-height: 17px; padding-bottom: 2px; }
+  .pressure-sensor-card .pressure-card-head h2 { line-height: 1.2; }
+  .pressure-sensor-card .pressure-readings { margin-top: 1px; font-size: 10.5px; line-height: 1.25; }
+  .pressure-gait-card .pressure-readings { line-height: 1.25; }
+  .pressure-gait-note { line-height: 1.3; }
+  .pressure-sensor-state { font-size: 9px; }
+  .pressure-plot { margin-top: 2px; }
+}
+
+@container pressure-sidebar (max-height: 340px) {
+  .pressure-sidebar-stack { grid-template-rows: minmax(0, 1fr) 116px 68px; gap: 6px; }
+  .pressure-sensor-grid { gap: 4px; }
+  .pressure-glass { padding: 3px 9px; }
+  .pressure-card-head { min-height: 12px; padding-bottom: 0; border-bottom: 0; }
+  .pressure-sensor-card .pressure-card-head { min-height: 12px; padding-bottom: 0; }
+  .pressure-card-head h2 { font-size: 11px; line-height: 12px; }
+  .pressure-sensor-card .pressure-card-head h2 { font-size: 10px; line-height: 12px; }
+  .pressure-sensor-card .pressure-readings { font-size: 10px; line-height: 1.1; margin-top: 1px; }
+  .pressure-gait-card .pressure-readings {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    column-gap: 10px;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+  .pressure-gait-card .pressure-readings > div + div { border-top: 0; }
+  .pressure-unit { font-size: 10px; }
+  .pressure-legend { font-size: 9px; line-height: 1.2; }
+  .pressure-plot-tick { display: none; }
+  .pressure-gait-note { font-size: 9px; margin-top: 1px; }
+}

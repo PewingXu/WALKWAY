@@ -12,6 +12,7 @@ import BrandHeader from '../components/BrandHeader.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
 import RenderParams from '../components/RenderParams.jsx'
 import AdcTrendChart from '../components/AdcTrendChart.jsx'
+import { LivePressureSidebar } from '../components/PressureSidebar.jsx'
 import { pushLog } from '../lib/logBus.js'
 
 const PADS = [1, 2, 3, 4]
@@ -47,6 +48,7 @@ export default function Capture() {
   const [viewMode, setViewMode] = useState('walkway')
   // 显示左右翻转（点云 + 热力图同时反转走行方向）
   const [flip, setFlip] = useState(false)
+  const [resetViewKey, setResetViewKey] = useState(0)
   // 「连接与设置」弹窗
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false)
 
@@ -423,6 +425,9 @@ export default function Capture() {
                 平面热力图
               </button>
             </div>
+            <button className="wk-btn wk-btn-sm" onClick={() => setResetViewKey((key) => key + 1)} title="恢复初始位置与缩放；画布也支持双击复位">
+              重置视图
+            </button>
             <button
               className={`wk-btn wk-btn-sm${flip ? ' wk-btn-primary' : ''}`}
               onClick={() => setFlip((f) => !f)}
@@ -444,6 +449,7 @@ export default function Capture() {
                 sensor4: matrices[4],
               }}
               flip={flip}
+              resetViewKey={resetViewKey}
               particleParams={{
                 colorRange: autoColor ? 700 : colorMax,
                 filterThreshold: threshold,
@@ -458,10 +464,13 @@ export default function Capture() {
                 sensor4: matrices[4],
               }}
               flip={flip}
+              resetViewKey={resetViewKey}
               colorMax={autoColor ? 0 : colorMax}
               threshold={threshold}
             />
           )}
+
+          <LivePressureSidebar sessionKey={startTimeRef.current} />
 
           {/* 浮层 1：渲染参数（视图右上角） */}
           <div className="stage-overlay stage-overlay-tr">

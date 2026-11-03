@@ -7,6 +7,7 @@ import { framesToTemplateCsvs, frameToMatrices, frameTimeStr } from '../lib/data
 import LogConsole from '../components/LogConsole.jsx'
 import BrandHeader from '../components/BrandHeader.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
+import { ReplayPressureSidebar } from '../components/PressureSidebar.jsx'
 import { pushLog } from '../lib/logBus.js'
 
 const SPEEDS = [0.5, 1, 2]
@@ -29,6 +30,7 @@ export default function Replay() {
   const [viewMode, setViewMode] = useState('walkway')
   // 显示左右翻转（点云 + 热力图同时反转走行方向）
   const [flip, setFlip] = useState(false)
+  const [resetViewKey, setResetViewKey] = useState(0)
   // 「受试者信息」弹窗
   const [subjectDialogOpen, setSubjectDialogOpen] = useState(false)
 
@@ -182,6 +184,9 @@ export default function Replay() {
                 平面热力图
               </button>
             </div>
+            <button className="wk-btn wk-btn-sm" onClick={() => setResetViewKey((key) => key + 1)} title="恢复初始位置与缩放；画布也支持双击复位">
+              重置视图
+            </button>
             <button
               className={`wk-btn wk-btn-sm${flip ? ' wk-btn-primary' : ''}`}
               onClick={() => setFlip((f) => !f)}
@@ -192,15 +197,14 @@ export default function Replay() {
           </div>
         </div>
 
-        {viewMode === 'walkway' ? (
-          <div className="gait-stage">
-            <GaitWalkway sensorData={sensorData} flip={flip} />
-          </div>
-        ) : (
-          <div className="gait-stage heat-flat-stage">
-            <WalkwayFlatHeatmap sensorData={sensorData} flip={flip} />
-          </div>
-        )}
+        <div className={`gait-stage${viewMode === 'heatmap' ? ' heat-flat-stage' : ''}`}>
+          {viewMode === 'walkway' ? (
+            <GaitWalkway sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} />
+          ) : (
+            <WalkwayFlatHeatmap sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} />
+          )}
+          <ReplayPressureSidebar frames={frames} index={idx} />
+        </div>
       </div>
 
       {/* 底部播放控件 */}

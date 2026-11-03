@@ -14,8 +14,9 @@
  */
 import * as THREE from 'three'
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js'
-import { addSide, gaussBlur_1, interp1016, jet } from '../lib/three-util'
+import { addSide, findMax, gaussBlur_1, interp1016, jet } from '../lib/three-util'
 import React, { useEffect, useRef } from 'react'
+import { getWalkwayViewport, observeWalkwayViewport } from '../lib/walkwayViewport.js'
 
 /* ─── 常量 ─── */
 const NX = 64 // 合并后行数（传感器宽度）
@@ -45,8 +46,10 @@ export default function GaitWalkway({
   optimizeEnabled = true,
   flip = false,
   onSceneReady = null,
+  resetViewKey = 0,
 }) {
   const containerRef = useRef(null)
+  const resetViewRef = useRef(null)
   const propsRef = useRef({ sensorData, particleParams, transformParams, optimizeEnabled, flip })
   propsRef.current = { sensorData, particleParams, transformParams, optimizeEnabled, flip }
 
@@ -154,14 +157,17 @@ export default function GaitWalkway({
     renderer.setClearColor(0xffffff)
 
     /* ─── 控制器 ─── */
-    const controls = new TrackballControls(camera, renderer.domElement)
-    controls.dynamicDampingFactor = 0.2
-    controls.domElement = container
-    controls.mouseButtons = {
-      LEFT: THREE.MOUSE.PAN,
-      MIDDLE: THREE.MOUSE.ZOOM,
-      RIGHT: THREE.MOUSE.ROTATE,
+    function createControls() {
+      const instance = new TrackballControls(camera, container)
+      instance.dynamicDampingFactor = 0.2
+      instance.mouseButtons = {
+        LEFT: THREE.MOUSE.PAN,
+        MIDDLE: THREE.MOUSE.ZOOM,
+        RIGHT: THREE.MOUSE.ROTATE,
+      }
+      return instance
     }
+    let controls = createControls()
 
     if (onSceneReady) onSceneReady({ scene, camera, renderer })
 
@@ -348,25 +354,102 @@ export default function GaitWalkway({
       renderer.render(scene, camera)
     }
 
+    let hasInteracted = false
+    const markInteraction = () => { hasInteracted = true }
+    controls.addEventListener('start', markInteraction)
+
+    // 用完整步道（含压力高度）拟合初始画面，而不是单纯平移后裁掉最右侧的垫子。
+    function fitDefaultView() {
+      if (hasInteracted) {
+        // 重建控制器以清除旋转 / 缩放的惯性，防止复位后画面继续漂移。
+        controls.removeEventListener('start', markInteraction)
+        controls.dispose()
+        camera.position.set(0, 600, 800)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(0, 0, 0)
+        camera.zoom = 1
+        controls = createControls()
+        controls.addEventListener('start', markInteraction)
+      }
+      hasInteracted = false
+      controls.reset()
+      camera.clearViewOffset()
+      camera.zoom = 1
+      camera.updateProjectionMatrix()
+      camera.updateMatrixWorld()
+      renewData()
+      scene.updateMatrixWorld(true)
+      const area = getWalkwayViewport(container)
+      const heightScale = propsRef.current.particleParams.heightScale ?? 2.6
+      const cornersForHeight = (height) => {
+        const corners = []
+        for (const x of [-padDepth / 2, padDepth / 2]) {
+          for (const y of [0, height]) {
+            for (const z of [-padWidth / 2, padWidth / 2]) {
+              corners.push(new THREE.Vector3(x, y, z).applyMatrix4(particles.matrixWorld))
+            }
+          }
+        }
+        return corners
+      }
+      const screenBounds = (corners) => {
+        const bounds = new THREE.Box2()
+        for (const corner of corners) {
+          const projected = corner.clone().project(camera)
+          bounds.expandByPoint(new THREE.Vector2((projected.x + 1) * w / 2, (1 - projected.y) * h / 2))
+        }
+        return bounds
+      }
+      const referenceCorners = cornersForHeight(255 * 10 * heightScale)
+      const size = screenBounds(referenceCorners).getSize(new THREE.Vector2())
+      const fittedZoom = Math.min(1, area.width / Math.max(size.x, 1), area.height / Math.max(size.y, 1))
+      // 默认较上一版放大 20%；以当前完整压力场限制放大幅度，避免高压峰越过面板。
+      // 使用目标压力高度，而不是入场动画的当前高度，避免复位时缩放随动画变化。
+      const visibleCorners = cornersForHeight((findMax(bigArrg) * 10 + 0.5) * heightScale)
+      const visibleSize = screenBounds(visibleCorners).getSize(new THREE.Vector2())
+      camera.zoom = Math.min(fittedZoom * 1.2, area.width / Math.max(visibleSize.x, 1), area.height / Math.max(visibleSize.y, 1)) * 0.94
+      camera.updateProjectionMatrix()
+      const center = screenBounds(visibleCorners).getCenter(new THREE.Vector2())
+      camera.setViewOffset(w, h, center.x - area.centerX, center.y - area.centerY, w, h)
+      controls.handleResize()
+    }
+    resetViewRef.current = fitDefaultView
+
     function onResize() {
-      let w = container.clientWidth || window.innerWidth * 0.7
-      let h = container.clientHeight || window.innerHeight * 0.8
+      const previousWidth = w
+      const previousHeight = h
+      w = container.clientWidth || window.innerWidth * 0.7
+      h = container.clientHeight || window.innerHeight * 0.8
       renderer.setSize(w, h)
       camera.aspect = w / h
+      if (!hasInteracted) fitDefaultView()
+      else if (camera.view?.enabled) {
+        // 用户操作后保留相机和缩放，仅随窗口大小换算投影偏移。
+        camera.setViewOffset(w, h, camera.view.offsetX * w / previousWidth, camera.view.offsetY * h / previousHeight, w, h)
+      }
       camera.updateProjectionMatrix()
+      controls.handleResize()
     }
 
-    window.addEventListener('resize', onResize)
+    const stopObserving = observeWalkwayViewport(container, onResize)
+    container.addEventListener('dblclick', fitDefaultView)
+    onResize()
     animate()
 
     return () => {
       cancelAnimationFrame(animId)
-      window.removeEventListener('resize', onResize)
+      stopObserving()
+      container.removeEventListener('dblclick', fitDefaultView)
+      controls.removeEventListener('start', markInteraction)
+      controls.dispose()
+      resetViewRef.current = null
       geometry.dispose()
       material.dispose()
       if (renderer) renderer.dispose()
     }
   }, [])
+
+  useEffect(() => { resetViewRef.current?.() }, [resetViewKey])
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
