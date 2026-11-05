@@ -117,7 +117,7 @@ export default function GaitWalkway({
     particles.renderOrder = 1
     const BASE_SCALE = 0.0062 * 3
     particles.scale.set(BASE_SCALE, BASE_SCALE, BASE_SCALE)
-    particles.rotation.x = Math.PI / 3
+    particles.rotation.set(Math.PI, Math.PI, Math.PI)
 
     // 悬空底板与点云共用局部坐标，随视图一起移动；透明度独立于压力淡出参数。
     const platformGeometry = new THREE.PlaneGeometry(padDepth, padWidth)
@@ -307,9 +307,9 @@ export default function GaitWalkway({
       particles.scale.set(s, s, s)
       material.size = tp.particleSize ?? 3.7
       group.position.set(tp.posX ?? 0, tp.posY ?? 305, tp.posZ ?? 350)
-      // rotation（保留原有的 rotation.x = Math.PI/3，叠加用户调节值）
+      // 默认总旋转等价于单位矩阵：步道 XZ 平面与地面网格平行。
       const deg = Math.PI / 180
-      particles.rotation.x = Math.PI / 3 + (tp.rotX ?? 153) * deg
+      particles.rotation.x = Math.PI / 3 + (tp.rotX ?? 120) * deg
       particles.rotation.y = (tp.rotY ?? 180) * deg
       particles.rotation.z = (tp.rotZ ?? 180) * deg
 
@@ -413,12 +413,19 @@ export default function GaitWalkway({
       scene.updateMatrixWorld(true)
       const area = getWalkwayViewport(container)
       const heightScale = propsRef.current.particleParams.heightScale ?? 2.6
+      // 保留原来的视角拟合参考，避免调平步道时连带改变底部网格的屏幕大小和角度。
+      const tp = propsRef.current.transformParams
+      const deg = Math.PI / 180
+      const fitRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+        Math.PI / 3 + (tp.rotX ?? 153) * deg, (tp.rotY ?? 180) * deg, (tp.rotZ ?? 180) * deg,
+      ))
+      const fitMatrix = new THREE.Matrix4().compose(particles.position, fitRotation, particles.scale).premultiply(group.matrixWorld)
       const cornersForHeight = (height) => {
         const corners = []
         for (const x of [-padDepth / 2, padDepth / 2]) {
           for (const y of [0, height]) {
             for (const z of [-padWidth / 2, padWidth / 2]) {
-              corners.push(new THREE.Vector3(x, y, z).applyMatrix4(particles.matrixWorld))
+              corners.push(new THREE.Vector3(x, y, z).applyMatrix4(fitMatrix))
             }
           }
         }

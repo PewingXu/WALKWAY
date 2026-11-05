@@ -4,12 +4,11 @@ export function getWalkwayViewport(container) {
   const width = container.clientWidth
   const height = container.clientHeight
   const sidebar = stage.querySelector('.pressure-sidebar')
-  const params = stage.querySelector('.stage-overlay-tr')
-  const toggle = params?.querySelector('.rp-toggle')
+  const toggle = stage.querySelector('.rp-toggle')
   const gap = 20
   const left = sidebar ? sidebar.offsetLeft + sidebar.offsetWidth + gap : gap
-  // 展开参数是浮层操作，不应让用户正在观察的视图突然缩小或移动。
-  const top = toggle ? params.offsetTop + toggle.offsetHeight + gap : gap
+  // 沿用原顶部工具条的预留高度；浮层移到底部或展开时不改变主视图的初始位置和缩放。
+  const top = toggle ? 12 + toggle.offsetHeight + gap : gap
   const right = width - gap
   const bottom = height - gap
   return {

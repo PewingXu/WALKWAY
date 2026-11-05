@@ -9,6 +9,7 @@ import BrandHeader from '../components/BrandHeader.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
 import { ReplayPressureSidebar } from '../components/PressureSidebar.jsx'
 import RenderParams from '../components/RenderParams.jsx'
+import FootprintPreview from '../components/FootprintPreview.jsx'
 import { DEFAULT_RENDER_SETTINGS, sensorFramePeak } from '../lib/renderSettings.js'
 import { pushLog } from '../lib/logBus.js'
 
@@ -214,7 +215,10 @@ export default function Replay() {
             <WalkwayFlatHeatmap sensorData={sensorData} flip={flip} resetViewKey={resetViewKey} renderSettings={renderSettings} resetTemporalKey={resetTemporalKey} />
           )}
           <ReplayPressureSidebar frames={frames} index={idx} />
-          <div className="stage-overlay stage-overlay-tr">
+          <div className="stage-right-overlays">
+            {viewMode === 'walkway' && (
+              <FootprintPreview sensorData={sensorData} settings={renderSettings} resetKey={resetTemporalKey} />
+            )}
             <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} />
           </div>
         </div>

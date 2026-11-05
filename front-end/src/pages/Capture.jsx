@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { backendBridge } from '../lib/BackendBridge.js'
 import { buildCsvRow, buildCsv } from '../lib/csvExport.js'
@@ -11,6 +11,7 @@ import LogConsole from '../components/LogConsole.jsx'
 import BrandHeader from '../components/BrandHeader.jsx'
 import DeviceDialog from '../components/DeviceDialog.jsx'
 import RenderParams from '../components/RenderParams.jsx'
+import FootprintPreview from '../components/FootprintPreview.jsx'
 import { DEFAULT_RENDER_SETTINGS } from '../lib/renderSettings.js'
 import { LivePressureSidebar } from '../components/PressureSidebar.jsx'
 import { pushLog } from '../lib/logBus.js'
@@ -50,6 +51,7 @@ export default function Capture() {
 
   const [renderSettings, setRenderSettings] = useState(() => ({ ...DEFAULT_RENDER_SETTINGS }))
   const [padPeaks, setPadPeaks] = useState({ 1: 0, 2: 0, 3: 0, 4: 0 })
+  const sensorData = useMemo(() => Object.fromEntries(PADS.map((n) => [`sensor${n}`, matrices[n]])), [matrices])
 
   // refs：累积的 CSV 行（每块），采集开关，计时器
   const framesRef = useRef({ 1: [], 2: [], 3: [], 4: [] })
@@ -423,24 +425,14 @@ export default function Capture() {
         <div className={`gait-stage${viewMode === 'heatmap' ? ' heat-flat-stage' : ''}`}>
           {viewMode === 'walkway' ? (
             <GaitWalkway
-              sensorData={{
-                sensor1: matrices[1],
-                sensor2: matrices[2],
-                sensor3: matrices[3],
-                sensor4: matrices[4],
-              }}
+              sensorData={sensorData}
               flip={flip}
               resetViewKey={resetViewKey}
               renderSettings={renderSettings}
             />
           ) : (
             <WalkwayFlatHeatmap
-              sensorData={{
-                sensor1: matrices[1],
-                sensor2: matrices[2],
-                sensor3: matrices[3],
-                sensor4: matrices[4],
-              }}
+              sensorData={sensorData}
               flip={flip}
               resetViewKey={resetViewKey}
               renderSettings={renderSettings}
@@ -449,8 +441,9 @@ export default function Capture() {
 
           <LivePressureSidebar sessionKey={startTimeRef.current} />
 
-          {/* 浮层 1：渲染参数（视图右上角） */}
-          <div className="stage-overlay stage-overlay-tr">
+          {/* 右侧浮层：脚印置顶，渲染参数置底。 */}
+          <div className="stage-right-overlays">
+            <FootprintPreview sensorData={sensorData} settings={renderSettings} live online={padOnline} resetKey={startTimeRef.current} />
             <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} />
           </div>
         </div>

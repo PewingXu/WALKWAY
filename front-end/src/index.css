@@ -455,14 +455,26 @@ button {
 }
 
 /* ─── 视图内渲染参数浮层；默认收起，内容使用液态玻璃样式 ─── */
-.stage-overlay {
+.stage-right-overlays {
   position: absolute;
   z-index: 3;
-}
-.stage-overlay-tr {
   top: 12px;
   right: 12px;
+  bottom: 12px;
   max-width: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: none;
+}
+.stage-right-overlays > .rp-panel {
+  flex: 0 1 auto;
+  min-height: 44px;
+  margin-top: auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  pointer-events: auto;
 }
 
 .heat-grid {
