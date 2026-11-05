@@ -1,9 +1,9 @@
 export const DEFAULT_RENDER_SETTINGS = Object.freeze({
   autoColor: false,
-  colorMax: 255,
+  colorMax: 100,
   colorCurve: 0.6,
   edgeFade: 6,
-  spatialSmooth: 1.2,
+  spatialSmooth: 0.5,
   transitionSmooth: 3,
   threshold: 2,
 })

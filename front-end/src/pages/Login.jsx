@@ -11,12 +11,36 @@ export default function Login() {
   const [logoOk, setLogoOk] = useState(true)
   const importInputRef = useRef(null)
 
-  // 自动回填上次输入的密钥（下次打开无需重复输入）
+  // 自动回填上次输入的密钥（下次打开无需重复输入）。
+  // 优先从主进程读 serial.txt —— 它不随启动方式变；localStorage 按 origin 隔离，
+  // dev / preview / 安装版各一份，只靠它会出现「换个方式打开密钥就没了」。
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DEVICE_KEY_STORAGE)
-      if (saved) setKey(saved)
-    } catch (e) {}
+    let cancelled = false
+    const fromLocal = () => {
+      try {
+        return localStorage.getItem(DEVICE_KEY_STORAGE) || ''
+      } catch (e) {
+        return ''
+      }
+    }
+    const api = window.electronAPI
+    if (api && api.getDeviceKey) {
+      api
+        .getDeviceKey()
+        .then((res) => {
+          if (cancelled) return
+          const fromFile = res && res.ok && typeof res.key === 'string' ? res.key.trim() : ''
+          setKey(fromFile || fromLocal())
+        })
+        .catch(() => {
+          if (!cancelled) setKey(fromLocal())
+        })
+    } else {
+      setKey(fromLocal())
+    }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleImportClick = () => {

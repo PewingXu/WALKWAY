@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ====== 设备后端状态 ======
   // 返回 { ready, port, error? }
   getDeviceStatus: () => ipcRenderer.invoke('get-device-status'),
+  // 读回上次保存的密钥（来自 userData/serial.txt，跨启动方式共享）。返回 { ok, key }
+  getDeviceKey: () => ipcRenderer.invoke('get-device-key'),
   // 保存登录页密钥为本地设备映射（写 serial.txt 并重启串口服务）
   // 返回 { ok, count?, mapping?, path?, error? }
   saveDeviceKey: (key) => ipcRenderer.invoke('save-device-key', { key }),

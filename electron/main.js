@@ -322,6 +322,24 @@ function registerIpc() {
 
   ipcMain.handle('get-device-status', () => deviceState)
 
+  // 读回上次保存的密钥，供登录页回填。
+  // 密钥的真正落点是 userData/serial.txt（跨启动方式共享）；渲染进程的 localStorage
+  // 按 origin 隔离（app:// / localhost:5273 / 127.0.0.1:4399 各一份），换启动方式就回填不出来，
+  // 所以登录页应优先从这里读。返回 { ok, key }；key 为可直接填回输入框的字符串。
+  ipcMain.handle('get-device-key', async () => {
+    try {
+      const raw = fs.readFileSync(getDeviceKeyPath(), 'utf-8').trim()
+      if (!raw) return { ok: true, key: '' }
+      const obj = JSON.parse(raw)
+      // 当初从登录页宽松串写入的：key 字段就是用户输入原文，原样回填
+      if (obj && typeof obj.key === 'string') return { ok: true, key: obj.key }
+      // 当初以 JSON 对象写入的：整体回填，仍可被 save-device-key 识别
+      return { ok: true, key: raw }
+    } catch (e) {
+      return { ok: true, key: '' } // 文件不存在或不可读，当作无记录
+    }
+  })
+
   // 登录页密钥 → 写入本地设备映射文件（serial.txt），并重启串口服务使映射立即生效。
   // 密钥即配置串：可为「纯映射对象」「云端下发格式 {key,orgName}」或「宽松字符串」。
   // 统一归一化为 { key:<映射>, orgName } 写入，与 gaitSerialServer 的读取口径一致。

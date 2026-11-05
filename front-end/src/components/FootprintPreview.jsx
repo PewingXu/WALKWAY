@@ -6,13 +6,55 @@ import './FootprintPreview.css'
 
 const SENSOR_KEYS = ['sensor1', 'sensor2', 'sensor3', 'sensor4']
 const STALE_MS = 1500
-const DISPLAY_SCALE = 5
+// 每个传感器单元的显示像素；与下方 canvas 尺寸配套，决定脚印在面板里的大小
+const DISPLAY_SCALE = 13
+// 卡片可拖拽调整的宽度范围（px）；高度随 canvas 宽高比自动跟随
+const CARD_MIN_WIDTH = 160
+const CARD_MAX_WIDTH = 520
 
 export default function FootprintPreview({ sensorData, settings = DEFAULT_RENDER_SETTINGS, live = false, online, resetKey = 0 }) {
   const canvasRef = useRef(null)
+  const cardRef = useRef(null)
+  const handleRef = useRef(null)
   const propsRef = useRef(null)
   const [active, setActive] = useState([false, false])
   propsRef.current = { sensorData, settings, live, online, resetKey }
+
+  // ─── 拖拽右下角手柄：改变卡片宽度，canvas 是 100% 宽、固定宽高比，脚印随卡片等比缩放 ───
+  useEffect(() => {
+    const card = cardRef.current
+    const handle = handleRef.current
+    let drag = null
+    const onPointerDown = (event) => {
+      if (drag || !event.isPrimary || event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      drag = { id: event.pointerId, startX: event.clientX, startWidth: card.getBoundingClientRect().width }
+      handle.setPointerCapture(event.pointerId)
+      card.classList.add('is-resizing')
+    }
+    const onPointerMove = (event) => {
+      if (!drag || drag.id !== event.pointerId) return
+      // 手柄在右下角，向右拖 = 变大；卡片靠右对齐，宽度变化时整体向左生长
+      const width = Math.max(CARD_MIN_WIDTH, Math.min(CARD_MAX_WIDTH, drag.startWidth + (event.clientX - drag.startX)))
+      card.style.width = `${width}px`
+    }
+    const endDrag = (event) => {
+      if (!drag || drag.id !== event.pointerId) return
+      drag = null
+      card.classList.remove('is-resizing')
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId)
+    }
+    const onDblClick = (event) => {
+      event.stopPropagation()
+      card.style.width = ''
+    }
+    const listeners = { pointerdown: onPointerDown, pointermove: onPointerMove, pointerup: endDrag, pointercancel: endDrag, lostpointercapture: endDrag, dblclick: onDblClick }
+    for (const [type, handler] of Object.entries(listeners)) handle.addEventListener(type, handler)
+    return () => {
+      for (const [type, handler] of Object.entries(listeners)) handle.removeEventListener(type, handler)
+    }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -84,11 +126,6 @@ export default function FootprintPreview({ sensorData, settings = DEFAULT_RENDER
         ctx.clip()
         // 保留俯视采样坐标，脚尖朝上；只平移，不旋转或按接触范围缩放。
         ctx.translate(slotX + slotWidth / 2, canvas.height / 2)
-        ctx.save()
-        ctx.globalAlpha = 0.25
-        ctx.filter = 'blur(2.5px)'
-        ctx.drawImage(layer.layer, -width / 2, -height / 2, width, height)
-        ctx.restore()
         ctx.drawImage(layer.layer, -width / 2, -height / 2, width, height)
         ctx.restore()
       })
@@ -99,15 +136,16 @@ export default function FootprintPreview({ sensorData, settings = DEFAULT_RENDER
   }, [])
 
   return (
-    <section className="footprint-preview pressure-glass" aria-label={live ? '实时左右脚脚印' : '回放左右脚脚印'}>
+    <section ref={cardRef} className="footprint-preview pressure-glass" aria-label={live ? '实时左右脚脚印' : '回放左右脚脚印'}>
       <header><span className="footprint-preview-dot" />{live ? '实时脚印' : '回放脚印'}<span className="footprint-preview-mode">原地</span></header>
       <div className="footprint-preview-field">
-        <canvas ref={canvasRef} width={288} height={320} aria-label="左脚在左、右脚在右，脚尖朝上；颜色表示压力大小" />
+        <canvas ref={canvasRef} width={520} height={442} aria-label="左脚在左、右脚在右，脚尖朝上；颜色表示压力大小" />
         <div className="footprint-preview-labels">
           {[{ label: '左脚', index: 0 }, { label: '右脚', index: 1 }].map(({ label, index }) => <span key={label} className={active[index] ? 'is-active' : ''}><i />{label}</span>)}
         </div>
       </div>
       <div className="footprint-preview-scale"><span>低</span><i style={{ background: FOOTPRINT_COLOR_GRADIENT }} /><span>高</span></div>
+      <div ref={handleRef} className="footprint-preview-resize" title="拖动调整卡片大小 · 双击恢复默认" aria-label="调整脚印卡片大小" role="separator" />
     </section>
   )
 }
