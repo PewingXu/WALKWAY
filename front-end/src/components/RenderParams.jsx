@@ -3,26 +3,29 @@ import { DEFAULT_RENDER_SETTINGS, RENDER_SLIDERS } from '../lib/renderSettings.j
 import './PressureSidebar.css'
 import './RenderParams.css'
 
-export default function RenderParams({ settings, onChange, frameMax = 0 }) {
+export default function RenderParams({ settings, onChange, frameMax = 0, is3D = true }) {
   const id = useId()
   const fittedColorMax = Math.max(1, Math.min(255, Math.ceil(frameMax)))
   const setValue = (key, value) => onChange((previous) => ({ ...previous, [key]: value }))
-  const renderSlider = ({ key, label, min, max, step, hint }) => (
-    <label className={`rp-row${key === 'colorMax' && settings.autoColor ? ' is-disabled' : ''}`} key={key} title={hint}>
-      <span className="rp-label">{label}</span>
-      <input
-        className="rp-range"
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={settings[key]}
-        disabled={key === 'colorMax' && settings.autoColor}
-        onChange={(event) => setValue(key, Number(event.target.value))}
-      />
-      <output className="rp-val">{key === 'colorMax' && settings.autoColor ? Math.round(frameMax) : settings[key]}</output>
-    </label>
-  )
+  const renderSlider = ({ key, label, min, max, step, hint }) => {
+    const disabled = (key === 'colorMax' && settings.autoColor) || (key === 'heightScale' && !is3D)
+    return (
+      <label className={`rp-row${disabled ? ' is-disabled' : ''}`} key={key} title={hint}>
+        <span className="rp-label">{label}</span>
+        <input
+          className="rp-range"
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={settings[key] ?? DEFAULT_RENDER_SETTINGS[key]}
+          disabled={disabled}
+          onChange={(event) => setValue(key, Number(event.target.value))}
+        />
+        <output className="rp-val">{key === 'heightScale' ? `${(settings[key] ?? DEFAULT_RENDER_SETTINGS.heightScale).toFixed(1)}×` : key === 'colorMax' && settings.autoColor ? Math.round(frameMax) : settings[key]}</output>
+      </label>
+    )
+  }
 
   return (
     <details className="rp-panel pressure-glass" onKeyDown={(event) => {

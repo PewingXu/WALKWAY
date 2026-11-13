@@ -298,7 +298,7 @@ export default function GaitWalkway({
         gaussSigma: pp.gaussSigma ?? settings.spatialSmooth * INTERP,
         filterThreshold: pp.filterThreshold ?? settings.threshold,
         initValue: pp.initValue ?? settings.transitionSmooth,
-        heightScale: pp.heightScale ?? 2.6,
+        heightScale: (pp.heightScale ?? 2.6) * (settings.heightScale ?? DEFAULT_RENDER_SETTINGS.heightScale),
       }
 
       // 实时更新空间变换（默认值对齐 express 步道 GAIT_TRANSFORM_DEFAULTS）
@@ -412,7 +412,7 @@ export default function GaitWalkway({
       renewData()
       scene.updateMatrixWorld(true)
       const area = getWalkwayViewport(container)
-      const heightScale = propsRef.current.particleParams.heightScale ?? 2.6
+      const heightScale = (propsRef.current.particleParams.heightScale ?? 2.6) * (propsRef.current.renderSettings.heightScale ?? DEFAULT_RENDER_SETTINGS.heightScale)
       // 保留原来的视角拟合参考，避免调平步道时连带改变底部网格的屏幕大小和角度。
       const tp = propsRef.current.transformParams
       const deg = Math.PI / 180

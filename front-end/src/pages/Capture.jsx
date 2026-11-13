@@ -444,7 +444,7 @@ export default function Capture() {
           {/* 右侧浮层：脚印置顶，渲染参数置底。 */}
           <div className="stage-right-overlays">
             <FootprintPreview sensorData={sensorData} settings={renderSettings} live online={padOnline} resetKey={startTimeRef.current} />
-            <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} />
+            <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} is3D={viewMode === 'walkway'} />
           </div>
         </div>
       </div>

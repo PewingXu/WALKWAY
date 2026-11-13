@@ -219,7 +219,7 @@ export default function Replay() {
             {viewMode === 'walkway' && (
               <FootprintPreview sensorData={sensorData} settings={renderSettings} resetKey={resetTemporalKey} />
             )}
-            <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} />
+            <RenderParams settings={renderSettings} onChange={setRenderSettings} frameMax={frameMax} is3D={viewMode === 'walkway'} />
           </div>
         </div>
       </div>
